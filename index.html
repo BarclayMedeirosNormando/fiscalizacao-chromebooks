@@ -72,7 +72,7 @@ canvas.sig{width:100%;height:150px;border:1px dashed var(--mut);border-radius:8p
    [município, INEP, escola, zona, fomento, estações de recarga, Chromebooks por estação, Chromebooks] */
 let ESCOLAS=[];let byInep={};
 function setEscolas(a){ESCOLAS=a;byInep=Object.fromEntries(a.map(e=>[e[1],e]))}
-const DEFAULT_URL='';
+const DEFAULT_URL=atob('aHR0cHM6Ly9zY3JpcHQuZ29vZ2xlLmNvbS9tYWNyb3Mvcy9BS2Z5Y2J4OS0tMXF0N1B2WEJCVklpaUYySk93NU9HcDdqWmNMZ2NObkQ3VkMxUFhkcmdTX1V0bnpZcFBjVnktak5scUgwZkFkUS9leGVj');
 const FISCAL={nome:'',cargo:'',mat:''};
 const isAdmin=()=>!!(S.meta.user&&S.meta.user.perfil==='admin');
 function setFiscal(){const u=S.meta.user;if(!u)return;const m=String(u.mat);FISCAL.nome=u.nome;FISCAL.mat=m.length===7?m.slice(0,3)+'.'+m.slice(3,6)+'-'+m.slice(6):m;FISCAL.cargo=u.perfil==='admin'?'Fiscal do Contrato nº 0029/2026':'Técnico – Fiscalização do Contrato nº 0029/2026'}
@@ -459,11 +459,11 @@ function touch(inep){const v=V(inep);v.updated=Date.now();v.dirty=true;save();sy
 /* ===== Acesso ===== */
 let tmpPw='';
 function showLogin(msg,trocar){const lg=$('#login');lg.style.display='flex';$('#l-msg').textContent=msg||'';
-  $('#l-srv').style.display=S.meta&&S.meta.url?'none':'block';$('#l-form').style.display=trocar?'none':'block';$('#l-troca').style.display=trocar?'block':'none'}
+  $('#l-srv').style.display=(DEFAULT_URL||(S.meta&&S.meta.url))?'none':'block';$('#l-form').style.display=trocar?'none':'block';$('#l-troca').style.display=trocar?'block':'none'}
 function enter(){$('#login').style.display='none';$('#l-pw').value='';setFiscal();render();syncChip();if(navigator.onLine)setTimeout(()=>sync(false),500)}
 async function logout(){try{if(navigator.onLine&&S.meta.session)await api('logout',{})}catch(e){}S.meta.session='';S.meta.user=null;save();showLogin('')}
 $('#l-go').onclick=async()=>{const m=$('#l-msg');m.textContent='';
-  const url=($('#l-url').value||S.meta.url||DEFAULT_URL).trim();if(!url){m.textContent='Informe o endereço do servidor.';return}
+  const url=(DEFAULT_URL||$('#l-url').value||S.meta.url).trim();if(!url){m.textContent='Informe o endereço do servidor.';return}
   if(!navigator.onLine){m.textContent='O acesso exige internet. Depois de entrar, o app funciona sem conexão.';return}
   if(!$('#l-mat').value.trim()||!$('#l-pw').value){m.textContent='Informe matrícula e senha.';return}
   S.meta.url=url;$('#l-go').disabled=true;
@@ -487,7 +487,7 @@ async function loadUsers(){const el=$('#u-list');if(!el)return;
 /* ===== Início ===== */
 (async function(){
   try{await DB.open();S=Object.assign(S,await DB.get('state')||{});const ar=await DB.get('series');if(ar)SERIES=new Map(ar.map(r=>[r[0],[r[1],r[2]]]));const es=await DB.get('escolas');if(es)setEscolas(es)}catch(e){toast('Armazenamento indisponível: os dados não serão salvos')}
-  S.meta=Object.assign({url:DEFAULT_URL,session:'',user:null,device:'',lastPull:0,lastSync:0,lastAlmox:0},S.meta||{});delete S.meta.token;
+  S.meta=Object.assign({url:DEFAULT_URL,session:'',user:null,device:'',lastPull:0,lastSync:0,lastAlmox:0},S.meta||{});delete S.meta.token;if(DEFAULT_URL)S.meta.url=DEFAULT_URL;
   if(S.meta.session){setFiscal();render();syncChip();if(navigator.onLine)setTimeout(()=>sync(false),2500)}else showLogin('');
   if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
