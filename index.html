@@ -120,7 +120,7 @@ function V(inep){
   if(!S.visits[inep])S.visits[inep]={almoxCB:null,almoxEst:null,contCB:null,contEst:null,modo:'amostra',pct:10,items:[],checks:{},ocorr:'',fotos:[],assin:'',resp:'',cargo:'',data:'',concluida:false};
   return S.visits[inep];
 }
-function almoxQ(inep){const q=S.almoxQtd[inep];const v=V(inep);return{cb:v.almoxCB??(q?q.cb:null),est:v.almoxEst??(q?q.est:null)}}
+function almoxQ(inep){const q=S.almoxQtd[inep];const v=V(inep);return{cb:v.almoxCB??(q?q.cb:null),est:v.almoxEst??(q?q.est:null),data:q&&q.data?q.data:''}}
 
 /* ===== Regras de conferência ===== */
 function checkItem(inep,it){
@@ -188,13 +188,14 @@ function lista(){
   return (ESCOLAS.length?'':`<div class="card"><b class="bad">Nenhuma escola carregada.</b><div class="mut">Conecte-se à internet e toque em Sincronizar. ${isAdmin()?'Como administrador, envie antes a lista de escolas em Dados.':''}</div></div>`)+`<input id="q" type="search" placeholder="Buscar escola, município ou INEP" value="${esc(view.q)}">
   <div class="row" style="margin:8px 0;flex-wrap:wrap">${['todas','pendente','andamento','confere','divergencia'].map(f=>`<button class="b sm ${view.filtro===f?'':'s'}" data-f="${f}">${f==='todas'?'Todas':STAT[f][0]}</button>`).join('')}</div>
   <div class="mut" style="margin-bottom:6px">${tot} escola(s)${tot>80?' – mostrando 80, refine a busca':''}</div>`+
-  arr.map(e=>{const s=status(e[1]);return `<div class="card" data-i="${e[1]}" style="cursor:pointer"><div class="row sp"><b>${esc(e[2])}</b><span class="tag ${STAT[s][1]}">${STAT[s][0]}</span></div>
+  arr.map(e=>{const s=status(e[1]);return `<div class="card" data-i="${e[1]}" style="cursor:pointer"><div class="row sp"><b>${esc(e[2])}</b><span style="text-align:right"><span class="tag ${STAT[s][1]}">${STAT[s][0]}</span>${isAdmin()&&s!=='pendente'?`<br><button class="b sm s" data-reset="${e[1]}" style="margin-top:6px">Resetar</button>`:''}</span></div>
   <div class="mut">${esc(e[0])} · INEP ${e[1]} · ${e[3].toLowerCase()}</div><div class="mut">Previsto: ${prevCB(e)} Chromebooks · ${prevEst(e)} estações</div></div>`}).join('');
 }
 function bindLista(){
   const q=$('#q');q.oninput=()=>{view.q=q.value;const p=q.selectionStart;render();const n=$('#q');n.focus();n.setSelectionRange(p,p)};
   document.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{view.filtro=b.dataset.f;render()});
   document.querySelectorAll('[data-i]').forEach(c=>c.onclick=()=>go('escolas',c.dataset.i));
+  document.querySelectorAll('[data-reset]').forEach(b=>b.onclick=e=>{e.stopPropagation();resetVisita(b.dataset.reset)});
 }
 
 /* ===== Tela da escola ===== */
@@ -203,7 +204,7 @@ function cell(a,b){const d=dif(a,b);return d==='–'?'<td>–</td>':`<td class="
 function escola(inep){
   const e=byInep[inep],v=V(inep),a=almoxQ(inep),s=status(inep);
   const tabs=[['resumo','Quantidades'],['itens','Equipamentos'],['ata','Ata']];
-  let h=`<div class="card"><div class="row sp"><div><b>${esc(e[2])}</b><div class="mut">${esc(e[0])} · INEP ${inep} · ${e[3].toLowerCase()}</div></div><span class="tag ${STAT[s][1]}">${STAT[s][0]}</span></div></div>
+  let h=`<div class="card"><div class="row sp"><div><b>${esc(e[2])}</b><div class="mut">${esc(e[0])} · INEP ${inep} · ${e[3].toLowerCase()}</div></div><span style="text-align:right"><span class="tag ${STAT[s][1]}">${STAT[s][0]}</span>${isAdmin()&&s!=='pendente'?`<br><button class="b sm s" data-reset="${inep}" style="margin-top:6px">Resetar</button>`:''}</span></div></div>
   <div class="row" style="margin-bottom:10px">${tabs.map(t=>`<button class="b sm ${view.tab===t[0]?'':'s'}" style="flex:1" data-tab="${t[0]}">${t[1]}</button>`).join('')}</div>`;
   if(view.tab==='resumo')h+=tabResumo(inep,e,v,a);
   else if(view.tab==='itens')h+=tabItens(inep,e,v);
@@ -216,7 +217,7 @@ function tabResumo(inep,e,v,a){
   <table class="cmp"><tr><th></th><th>Previsto (Anexo V)</th><th>Almoxarifado</th><th>Contado</th></tr>
   <tr><td>Chromebooks</td><td>${prevCB(e)}</td><td><input type="number" inputmode="numeric" data-f="almoxCB" value="${a.cb??''}" placeholder="–"></td><td><input type="number" inputmode="numeric" data-f="contCB" value="${v.contCB??''}" placeholder="–"></td></tr>
   <tr><td>Estações de recarga</td><td>${prevEst(e)}</td><td><input type="number" inputmode="numeric" data-f="almoxEst" value="${a.est??''}" placeholder="–"></td><td><input type="number" inputmode="numeric" data-f="contEst" value="${v.contEst??''}" placeholder="–"></td></tr></table>
-  <div class="mut" style="margin-top:6px">Anexo V: ${e[6]} Chromebooks por estação. Almoxarifado pré-preenchido quando a lista é importada em "Dados".</div></div>
+  <div class="mut" style="margin-top:6px">Anexo V: ${e[6]} Chromebooks por estação. ${a.data?'Saída do Almoxarifado: '+esc(a.data)+'.':'Almoxarifado pré-preenchido quando a saída é importada em "Dados".'}</div></div>
   <div class="card"><h3>Diferenças</h3><table class="cmp"><tr><th></th><th>Almox − previsto</th><th>Contado − Almox</th><th>Contado − previsto</th></tr>
   <tr><td>Chromebooks</td>${cell(prevCB(e),a.cb)}${cell(a.cb,v.contCB)}${cell(prevCB(e),v.contCB)}</tr>
   <tr><td>Estações</td>${cell(prevEst(e),a.est)}${cell(a.est,v.contEst)}${cell(prevEst(e),v.contEst)}</tr></table>
@@ -235,7 +236,7 @@ function tabItens(inep,e,v){
   <div class="grid"><div><label>Tipo</label><select id="n-tipo"><option value="CB">Chromebook</option><option value="EST">Estação de recarga</option></select></div>
   <div><label>Estado</label><select id="n-est">${Object.entries(ESTADOS).map(([k,x])=>`<option value="${k}">${x}</option>`).join('')}</select></div></div>
   <label>Nº de série</label><div class="row"><input id="n-serie" class="mono" autocapitalize="characters" autocomplete="off" placeholder="4AK..."><button class="b s" id="n-scan" style="white-space:nowrap">Escanear</button></div>
-  <label>Tombamento</label><input id="n-tomb" inputmode="numeric" autocomplete="off">
+  <label>Tombamento</label><div class="row"><input id="n-tomb" class="mono" autocomplete="off"><button class="b s" id="n-scan2" style="white-space:nowrap">Escanear</button></div>
   <label>Observação</label><input id="n-obs">
   <div id="n-prev" class="mut" style="margin-top:6px"></div>
   <div class="row" style="margin-top:8px"><button class="b" id="n-add" style="flex:1">Adicionar</button></div></div>
@@ -254,7 +255,7 @@ function tabAta(inep,e,v){
   <div class="card"><label>Ocorrências</label><textarea rows="4" data-f="ocorr" placeholder="Quantidades, séries divergentes, avarias...">${esc(v.ocorr)}</textarea></div>
   <div class="card"><h3>Fotos (facultativo)</h3><div class="photos">${v.fotos.map((f,i)=>`<img src="${f}" data-ph="${i}">`).join('')}</div>
   <div class="row" style="margin-top:8px"><input type="file" id="ph" accept="image/*" capture="environment" multiple></div></div>
-  <div class="card"><h3>Responsável pela escola</h3><label>Nome ou matrícula (digite para buscar)</label><input data-f="resp" id="resp-in" value="${esc(v.resp)}" autocomplete="off"><div id="resp-sug"></div><label>Cargo / matrícula</label><input data-f="cargo" value="${esc(v.cargo)}">
+  <div class="card"><h3>Responsável pela escola</h3><label>Nome ou matrícula (digite para buscar)</label><input data-f="resp" id="resp-in" value="${esc(v.resp)}" autocomplete="off"><div id="resp-sug"></div><label>Matrícula</label><input data-f="cargo" value="${esc(v.cargo)}">
   <label>Assinatura</label><canvas class="sig" id="sig"></canvas><div class="row" style="margin-top:6px"><button class="b s sm" id="sigx">Limpar</button></div></div>
   <div class="row"><button class="b" id="ataBtn" style="flex:1">Gerar ata (imprimir / PDF)</button></div>`;
 }
@@ -262,6 +263,7 @@ function tabAta(inep,e,v){
 /* ===== Eventos da escola ===== */
 function bindEscola(inep){
   const v=V(inep);
+  document.querySelectorAll('[data-reset]').forEach(b=>b.onclick=()=>resetVisita(inep));
   document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{view.tab=b.dataset.tab;render()});
   const ri=$('#resp-in');
   if(ri){const sg=$('#resp-sug');
@@ -291,6 +293,7 @@ function bindEscola(inep){
       if(v.items.some(x=>x.tipo===it.tipo&&it.serie&&norm(x.serie)===it.serie)){toast('Série já registrada nesta escola');return}
       v.items.unshift(it);touch(inep);render();toast('Adicionado');setTimeout(()=>{const s=$('#n-serie');s&&s.focus()},50)};
     $('#n-scan').onclick=()=>scan(code=>{ser.value=norm(code);prev();$('#n-tomb').focus()});
+    $('#n-scan2').onclick=()=>scan(code=>{$('#n-tomb').value=String(code).trim();prev()});
   }
   const ph=$('#ph');if(ph)ph.onchange=async()=>{for(const f of ph.files){v.fotos.push(await shrink(f));(v.fotoUrl=v.fotoUrl||[]).push('')}touch(inep);render()};
   document.querySelectorAll('[data-ph]').forEach(i=>i.onclick=()=>{if(confirm('Excluir a foto?')){v.fotos.splice(+i.dataset.ph,1);(v.fotoUrl||[]).splice(+i.dataset.ph,1);touch(inep);render()}});
@@ -313,7 +316,7 @@ function sign(cv,v,inep){
 /* ===== Leitura de código de barras ===== */
 let stream=null;
 async function scan(cb){
-  if(!('BarcodeDetector' in window)){toast('Este navegador não lê código de barras. Digite a série.');return}
+  if(!('BarcodeDetector' in window)){toast('Este navegador não lê código de barras. Digite o código.');return}
   try{
     const det=new BarcodeDetector({formats:['code_128','code_39','qr_code','ean_13','data_matrix','codabar']});
     stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
@@ -352,6 +355,7 @@ function dados(){
   <div style="margin-top:8px"><button class="b" id="u-add">Cadastrar técnico</button></div></div>
   <div class="card"><h3>Dados de referência (administrador)</h3><div class="mut">Enviados ao servidor e distribuídos aos usuários após o login.</div>
   <label>Lista de escolas (escolas.json)</label><input type="file" id="f-esc" accept=".json">
+  <label>Saída do Almoxarifado (MAPA CHROMEBOOKS .xlsx, aba RELATÓRIO DE SAÍDA)</label><input type="file" id="f-map" accept=".xlsx,.xls"><div id="map-res"></div>
   <label>Servidores (CSV: matricula;nome)</label><input type="file" id="f-srv" accept=".csv,.txt"><div class="mut">${SERV.length} servidores carregados.</div>
   <label>Relação de séries da Positivo (CSV: serie;nf_remessa;trd)</label><input type="file" id="f-ser" accept=".csv,.txt"><div class="mut" id="n-ser">${SERIES.size?SERIES.size+' séries carregadas.':'Nenhuma carregada.'} ${ESCOLAS.length} escola(s).</div></div>`:`<div class="mut" style="margin:0 0 10px">Escolas: ${ESCOLAS.length} · Séries da Positivo: ${SERIES.size} · Servidores: ${SERV.length}</div>`}
   <div class="card"><h3>Almoxarifado – quantidades por escola</h3><div class="mut">${nQ} escolas. CSV: inep;chromebooks;estacoes (ou aba Almox_Qtd da planilha)</div><input type="file" id="f-aq" accept=".csv,.txt" style="margin-top:8px"></div>
@@ -381,6 +385,7 @@ function bindDados(){
       $('#u-mat').value=$('#u-nome').value=$('#u-mail').value='';loadUsers()}catch(e){toast(e.message)}};
     $('#f-esc').onchange=async e=>{try{const a=JSON.parse(await readTxt(e.target.files[0]));if(!Array.isArray(a)||!a.length||!Array.isArray(a[0])||a[0].length<8)throw new Error('Arquivo inválido');
       setEscolas(a);await DB.set('escolas',a);await api('setEscolas',{escolas:a});toast(a.length+' escolas enviadas ao servidor');render()}catch(x){toast('Falha: '+x.message)}};
+    $('#f-map').onchange=e=>importarMapa(e.target.files[0]);
     $('#f-srv').onchange=async e=>{try{const rows=parseCSV(await readTxt(e.target.files[0])).filter(r=>/^\d{4,}$/.test(r[0])&&r[1]);if(!rows.length)throw new Error('Nenhuma linha válida');
       const arr=rows.map(r=>[r[0],r[1]]);toast('Enviando '+arr.length+' servidores…');await api('setServidores',{servidores:arr});setServ(arr);await DB.set('servidores',arr);toast(arr.length+' servidores enviados ao servidor');render()}catch(x){toast('Falha: '+x.message)}};
     $('#f-ser').onchange=async e=>{const rows=parseCSV(await readTxt(e.target.files[0])).filter(r=>/^[A-Za-z0-9]{6,}$/.test(r[0])&&r[0].toLowerCase()!=='serie');
@@ -421,7 +426,7 @@ function ata(inep){
   ${v.ocorr?`<p class="l">${esc(v.ocorr).replace(/\n/g,'<br>')}</p>`:''}
   <p class="l">Lavrada em duas vias, assinada pelo Fiscal do Contrato e pelo responsável da unidade escolar.</p><p>&nbsp;</p>
   <table style="border:0"><tr><td style="border:0;text-align:center;width:50%">________________________<br><b>${FISCAL.nome}</b><br>${FISCAL.cargo}<br>Matrícula nº ${FISCAL.mat}</td>
-  <td style="border:0;text-align:center">${v.assin?`<img src="${v.assin}" style="height:60px"><br>`:'<br><br>'}________________________<br><b>${esc(v.resp||'Nome: ______________')}</b><br>${esc(v.cargo||'Cargo/matrícula: ________')}<br>Responsável pela unidade escolar</td></tr></table>
+  <td style="border:0;text-align:center">${v.assin?`<img src="${v.assin}" style="height:60px"><br>`:'<br><br>'}________________________<br><b>${esc(v.resp||'Nome: ______________')}</b><br>${esc(v.cargo||'Matrícula: ________')}<br>Responsável pela unidade escolar</td></tr></table>
   ${v.fotos.length?`<p>&nbsp;</p><p class="l"><b>Registro fotográfico</b></p>${v.fotos.map(f=>`<img src="${f}" style="width:30%;margin:2px">`).join('')}`:''}`;
   window.print();
 }
@@ -440,7 +445,7 @@ async function api(action,body){const c=new AbortController(),t=setTimeout(()=>c
       if(j.error==='trocar'){showLogin('Defina uma nova senha para continuar.',true);throw new Error('troca de senha pendente')}
       throw new Error(j.error||'erro')}
     return j}catch(e){if(e.name==='TypeError'||e.name==='AbortError')throw new Error('Sem conexão com o servidor');throw e}finally{clearTimeout(t)}}
-function lite(v){const o=JSON.parse(JSON.stringify(Object.assign({},v,{fotos:[],assin:'',fotoUrl:[],assinUrl:'',dirty:false})));o.nFotos=(v.fotos||[]).length;o.temAssin=!!v.assin;return o}
+function lite(v){const o=JSON.parse(JSON.stringify(Object.assign({},v,{fotos:[],assin:'',fotoUrl:[],assinUrl:'',dirty:false,reset:false})));o.nFotos=(v.fotos||[]).length;o.temAssin=!!v.assin;return o}
 function summary(inep){const e=byInep[inep],v=V(inep),a=almoxQ(inep);let b=0;for(const it of v.items)if(checkItem(inep,it).length)b++;
   return{escola:e[2],municipio:e[0],prev_cb:prevCB(e),almox_cb:a.cb,cont_cb:v.contCB,prev_est:prevEst(e),almox_est:a.est,cont_est:v.contEst,n_itens:v.items.length,n_ocorr:b,situacao:STAT[status(inep)][0],divergencias:diverg(inep).join(' | '),data:v.data,resp:v.resp+(v.respMat?' ('+v.respMat+')':''),cargo:v.cargo,ocorr:v.ocorr}}
 function itemsOut(inep,v){return v.items.map(it=>{const p=SERIES.get(norm(it.serie))||['',''];return{tipo:it.tipo,serie:it.serie,tomb:it.tomb,nf:p[0],trd:p[1],estado:ESTADOS[it.estado]||'',ocorr:checkItem(inep,it).join(' | '),obs:it.obs||''}})}
@@ -452,9 +457,9 @@ async function sync(manual){
   syncing=true;syncChip();let pushed=0,files=0,pulled=0,conf=false;let cfgNew=false;
   try{
     for(const k of Object.keys(S.visits)){const v=S.visits[k];if(!v.dirty)continue;const sent=v.updated;
-      const r=await api('pushVisit',{inep:k,updated:sent,base:v.srv||0,visit:lite(v),summary:summary(k),items:itemsOut(k,v)});
+      const r=await api('pushVisit',{inep:k,updated:sent,base:v.srv||0,reset:!!v.reset,visit:lite(v),summary:summary(k),items:itemsOut(k,v)});
       if(r.conflict){conf=true;adopt(k,r.server,r.received);toast('Conflito na escola '+k+': prevaleceu a conferência mais recente ('+r.device+')')}
-      else{if(v.updated===sent)v.dirty=false;v.srv=r.received;pushed++}
+      else{if(v.updated===sent){v.dirty=false;v.reset=false}v.srv=r.received;pushed++}
       save()}
     for(const k of Object.keys(S.visits)){const v=S.visits[k];
       for(let i=0;i<(v.fotos||[]).length;i++)if(!(v.fotoUrl&&v.fotoUrl[i])){const r=await api('pushFile',{inep:k,kind:'foto',idx:i,dataUrl:v.fotos[i]});(v.fotoUrl=v.fotoUrl||[])[i]=r.url;files++;save()}
@@ -466,7 +471,7 @@ async function sync(manual){
     if(r.servidores){setServ(r.servidores);await DB.set('servidores',r.servidores);S.meta.servVer=r.servVer;cfgNew=true}
     if(r.series&&r.series.length){const arr=r.series.map(x=>[norm(x[0]),x[1]||'',x[2]||'']);SERIES=new Map(arr.map(x=>[x[0],[x[1],x[2]]]));await DB.set('series',arr);cfgNew=true}
     for(const x of r.visits||[]){const v=S.visits[x.inep];if(v&&v.dirty)continue;if(v&&(v.srv||0)>=x.received)continue;adopt(x.inep,x.visit,x.received);pulled++}
-    if(r.almoxQtd)Object.assign(S.almoxQtd,r.almoxQtd);
+    if(r.almoxQtd){if(Object.keys(r.almoxQtd).length)S.almoxQtd=r.almoxQtd}
     if(r.almoxItems){Object.assign(S.almoxItems,r.almoxItems);S.meta.lastAlmox=Date.now()}
     S.meta.lastPull=r.now;S.meta.lastSync=Date.now();save();
     if(manual)toast(`Enviadas: ${pushed} conferência(s), ${files} arquivo(s). Recebidas: ${pulled}.`);
@@ -476,7 +481,64 @@ async function sync(manual){
 window.addEventListener('online',()=>{syncChip();sync(false)});window.addEventListener('offline',syncChip);
 setInterval(()=>{if(navigator.onLine&&cfgOK()&&pending()>0)sync(false)},60000);
 $('#sync').onclick=()=>cfgOK()?sync(true):showLogin();
+function resetVisita(inep){if(!isAdmin())return;const e=byInep[inep];
+  if(!confirm('Resetar a conferência de "'+(e?e[2]:inep)+'"? Apaga quantidades, equipamentos, ocorrências, fotos e assinatura, neste aparelho e no servidor. As fotos já enviadas permanecem no Drive.'))return;
+  delete S.visits[inep];const v=V(inep);v.reset=true;touch(inep);toast('Conferência resetada');render()}
 function touch(inep){const v=V(inep);v.updated=Date.now();v.dirty=true;save();syncChip();clearTimeout(touch.t);touch.t=setTimeout(()=>sync(false),6000)}
+
+/* ===== Importação da planilha de saídas do Almoxarifado ===== */
+const XLSX_URL='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+const STOPW=new Set('de da do das dos e prof profa professor professora escola estadual ensino fundamental medio cidadao integral tecnica tecnico eeef eefm eeefm eeem ecit eci ecieefm ceeea cria cpm centro profis dep deputado'.split(' '));
+const nm=t=>fold(t).replace(/[^a-z0-9]+/g,' ').trim();
+const toksN=t=>nm(t).split(' ').filter(x=>x&&!STOPW.has(x));
+function ensureXLSX(){return window.XLSX?Promise.resolve():new Promise((ok,er)=>{const sc=document.createElement('script');sc.src=XLSX_URL;sc.onload=ok;sc.onerror=()=>er(new Error('Não foi possível carregar o leitor de planilhas. Verifique a internet.'));document.head.appendChild(sc)})}
+function isoSerial(v){if(v instanceof Date)return v.toISOString().slice(0,10);if(typeof v==='number')return new Date(Math.round((v-25569)*864e5)).toISOString().slice(0,10);
+  const m=/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(v||'').trim());return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:''}
+const brData=i=>i?i.slice(8,10)+'/'+i.slice(5,7)+'/'+i.slice(0,4):'';
+function sugestoes(cidade,dest){const c=nm(cidade),t=new Set(toksN(dest));
+  let cand=ESCOLAS.filter(e=>nm(e[0])===c);const naCidade=cand.length>0;if(!naCidade)cand=ESCOLAS;
+  const r=cand.map(e=>{const x=new Set(toksN(e[2]));let i=0;t.forEach(k=>{if(x.has(k))i++});return{e,j:i/Math.max(1,new Set([...t,...x]).size)}}).sort((a,b)=>b.j-a.j);
+  return{lista:r,naCidade}}
+let MAPA=null;
+async function importarMapa(f){const box=$('#map-res');if(!f)return;box.innerHTML='<div class="mut">Lendo planilha…</div>';
+  try{if(!ESCOLAS.length)throw new Error('Carregue antes a lista de escolas.');
+    await ensureXLSX();const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
+    const nome=wb.SheetNames.find(n=>/saida/.test(fold(n)));if(!nome)throw new Error('Aba "RELATÓRIO DE SAÍDA" não encontrada.');
+    const A=XLSX.utils.sheet_to_json(wb.Sheets[nome],{header:1,raw:true,defval:null});
+    const h=A.findIndex(r=>r.some(c=>c&&fold(c).trim()==='destino'));if(h<0)throw new Error('Cabeçalho "Destino" não encontrado.');
+    const cab=A[h].map(c=>fold(c).trim()),ix=k=>cab.findIndex(k);
+    const I={gre:ix(x=>x==='gre'),dest:ix(x=>x==='destino'),cid:ix(x=>x==='cidade'),est:ix(x=>x.startsWith('gabinete')),cb:ix(x=>x==='chromebooks'),dt:ix(x=>x.startsWith('data')),obs:ix(x=>x==='obs')};
+    if(I.dest<0||I.cid<0||I.cb<0)throw new Error('Colunas Destino, Cidade e Chromebooks são obrigatórias.');
+    const linhas=A.slice(h+1).filter(r=>r[I.dest]&&typeof r[I.cb]==='number').map(r=>({gre:r[I.gre]||'',dest:String(r[I.dest]).trim(),cid:String(r[I.cid]||'').trim(),est:Number(r[I.est])||0,cb:r[I.cb],dt:isoSerial(r[I.dt]),obs:r[I.obs]?String(r[I.obs]).trim():''}));
+    if(!linhas.length)throw new Error('Nenhuma linha de saída encontrada.');
+    const mem=(await api('getNomes',{})).nomes||{};
+    linhas.forEach(l=>{l.chave=nm(l.cid)+'|'+nm(l.dest);const m=mem[l.chave];if(m){l.inep=m;l.via='memória';return}
+      const s=sugestoes(l.cid,l.dest);l.sug=s;const a=s.lista[0],b=s.lista[1];
+      if(s.naCidade&&a&&a.j>=0.6&&(!b||a.j-b.j>=0.15)){l.inep=a.e[1];l.via='auto'}});
+    MAPA={linhas,nomes:[]};desenhaMapa()}
+  catch(x){box.innerHTML=`<div class="bad" style="margin-top:6px">${esc(x.message)}</div>`}}
+function desenhaMapa(){const box=$('#map-res'),L=MAPA.linhas,pend=L.filter(l=>!l.inep);
+  const tot=L.reduce((a,l)=>a+l.cb,0),est=L.reduce((a,l)=>a+l.est,0);
+  box.innerHTML=`<div class="card" style="margin-top:8px"><b>${L.length} saídas · ${tot} Chromebooks · ${est} estações</b><div class="mut">${L.filter(l=>l.inep&&l.inep!=='-').length} reconhecidas · ${pend.length} para confirmar</div>
+  ${pend.map((l,i)=>{const op=(l.sug.lista.slice(0,l.sug.naCidade?300:60)).map(r=>`<option value="${r.e[1]}"${r===l.sug.lista[0]&&r.j>=0.3?' selected':''}>${esc(r.e[2])} (${esc(r.e[0])}, ${r.e[7]} CB)</option>`).join('');
+    return `<div class="item" style="display:block"><div><b>${esc(l.dest)}</b> <span class="mut">· ${esc(l.cid)} · ${l.cb} CB · ${l.est} est.</span></div>
+    <select data-mp="${L.indexOf(l)}"><option value="">Escolha…</option>${op}<option value="-">Ignorar (não é escola)</option></select></div>`}).join('')}
+  <div style="margin-top:8px"><button class="b" id="map-ok">Importar saída do Almoxarifado</button></div><div class="mut" id="map-msg" style="margin-top:6px"></div></div>`;
+  box.querySelectorAll('[data-mp]').forEach(sel=>{const l=L[+sel.dataset.mp];if(sel.value)l._pre=sel.value;sel.onchange=()=>{l._pre=sel.value}});
+  $('#map-ok').onclick=confirmaMapa}
+async function confirmaMapa(){const L=MAPA.linhas,msg=$('#map-msg');
+  for(const l of L){if(!l.inep){if(!l._pre){msg.innerHTML='<span class="bad">Escolha uma opção em todas as saídas pendentes.</span>';return}
+      l.inep=l._pre;MAPA.nomes.push([l.chave,l.inep])}}
+  const g={};for(const l of L){if(l.inep==='-')continue;const e=byInep[l.inep];if(!e)continue;
+    const o=g[l.inep]||(g[l.inep]={inep:l.inep,escola:e[2],municipio:e[0],gre:l.gre,cb:0,est:0,datas:[],obs:[],linhas:0});
+    o.cb+=l.cb;o.est+=l.est;o.linhas++;if(l.dt)o.datas.push(l.dt);if(l.obs&&!o.obs.includes(l.obs))o.obs.push(l.obs)}
+  const saidas=Object.values(g).map(o=>{o.datas.sort();const d=o.datas.length?(o.datas[0]===o.datas[o.datas.length-1]?brData(o.datas[0]):brData(o.datas[0])+' a '+brData(o.datas[o.datas.length-1])):'';
+    return{inep:o.inep,escola:o.escola,municipio:o.municipio,gre:o.gre,cb:o.cb,est:o.est,data:d,obs:o.obs.join(' | ')}});
+  try{msg.textContent='Enviando…';await api('setAlmoxSaidas',{saidas:saidas,nomes:MAPA.nomes});
+    const q={};saidas.forEach(x=>q[x.inep]={cb:x.cb,est:x.est,data:x.data});S.almoxQtd=q;save();
+    const dv=saidas.filter(x=>{const e=byInep[x.inep];return x.cb!==prevCB(e)||x.est!==prevEst(e)}).length;
+    toast(saidas.length+' escolas importadas'+(dv?` (${dv} diferem do Anexo V)`:''));MAPA=null;render()}
+  catch(x){msg.innerHTML='<span class="bad">Falha: '+esc(x.message)+'</span>'}}
 
 /* ===== Acesso ===== */
 let tmpPw='';
