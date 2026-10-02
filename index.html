@@ -180,7 +180,7 @@ function autoChecks(inep){const v=V(inep),e=byInep[inep];if(!e)return false;v.ma
   return ch}
 
 /* ===== Navegação ===== */
-function navLabel(){const b=document.querySelector('nav [data-t=dados]');if(b)b.textContent=isAdmin()?'Dados':'Conta'}
+function navLabel(){const b=document.querySelector('nav [data-t=dados]');if(b)b.style.display=isAdmin()?'':'none'}
 function go(t,inep){view.t=t;view.inep=inep||null;if(inep)view.tab='resumo';render();window.scrollTo(0,0)}
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>go(b.dataset.t));
 $('#back').onclick=()=>go('escolas');
