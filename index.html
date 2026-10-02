@@ -57,7 +57,7 @@ canvas.sig{width:100%;height:150px;border:1px dashed var(--mut);border-radius:8p
 <header><button id="back" style="display:none">‹ Voltar</button><h1 id="title">Fiscalização Chromebooks</h1><button id="sync" style="font-size:12px"></button><button id="menu">⋯</button></header>
 <main id="app"></main>
 <nav><button data-t="escolas" class="on">Escolas</button><button data-t="painel">Painel</button><button data-t="dados">Dados</button></nav>
-<div id="scan"><video id="vid" playsinline muted></video><div class="bar"><button class="b s" id="scanx" style="flex:1;color:#fff;border-color:#fff">Fechar</button></div></div>
+<div id="scan"><video id="vid" playsinline muted></video><div id="scanmsg" style="color:#fff;text-align:center;padding:8px;font-size:14px;background:#000"></div><div class="bar"><button class="b s" id="scantorch" style="display:none;color:#fff;border-color:#fff">Lanterna</button><button class="b s" id="scanx" style="flex:1;color:#fff;border-color:#fff">Fechar</button></div></div>
 <div id="login"><div class="box"><h2>Fiscalização Chromebooks</h2><div class="mut">Contrato nº 0029/2026 · acesso restrito</div>
 <div id="l-srv"><label>Endereço do servidor (termina em /exec)</label><input id="l-url" autocapitalize="off" autocomplete="off"></div>
 <div id="l-form"><label>Matrícula</label><input id="l-mat" inputmode="numeric" autocomplete="username"><label>Senha</label><input id="l-pw" type="password" autocomplete="current-password">
@@ -331,17 +331,51 @@ function sign(cv,v,inep){
 }
 
 /* ===== Leitura de código de barras ===== */
-let stream=null;
+let stream=null,zxP=null;
+function loadZX(){if(window.ZXing)return Promise.resolve();return zxP||(zxP=new Promise((ok,no)=>{const e=document.createElement('script');e.src='zxing.min.js';e.onload=ok;e.onerror=()=>{zxP=null;no()};document.head.appendChild(e)}))}
+function zxDecoder(){
+  const Z=ZXing,h=new Map();h.set(Z.DecodeHintType.TRY_HARDER,true);
+  h.set(Z.DecodeHintType.POSSIBLE_FORMATS,[Z.BarcodeFormat.CODE_128,Z.BarcodeFormat.CODE_39,Z.BarcodeFormat.CODE_93,Z.BarcodeFormat.ITF,Z.BarcodeFormat.EAN_13,Z.BarcodeFormat.EAN_8,Z.BarcodeFormat.UPC_A,Z.BarcodeFormat.CODABAR,Z.BarcodeFormat.QR_CODE,Z.BarcodeFormat.DATA_MATRIX,Z.BarcodeFormat.PDF_417]);
+  const rd=new Z.MultiFormatReader();rd.setHints(h);
+  return cv=>{ // cv: canvas
+    const w=cv.width,hh=cv.height,d=cv.getContext('2d').getImageData(0,0,w,hh).data,l=new Uint8ClampedArray(w*hh);
+    for(let i=0,j=0;j<l.length;i+=4,j++)l[j]=(d[i]*306+d[i+1]*601+d[i+2]*117)>>10;
+    try{return rd.decode(new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.RGBLuminanceSource(l,w,hh)))).getText()}catch(e){return null}
+  };
+}
 async function scan(cb){
-  if(!('BarcodeDetector' in window)){toast('Este navegador não lê código de barras. Digite o código.');return}
+  const box=$('#scan'),vid=$('#vid'),msg=$('#scanmsg');let run=true,tk=null;
+  const stop=()=>{run=false;if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;box.style.display='none'};
+  const done=c=>{stop();if(navigator.vibrate)try{navigator.vibrate(80)}catch(e){}cb(String(c).trim())};
+  $('#scanx').onclick=stop;
   try{
-    const det=new BarcodeDetector({formats:['code_128','code_39','qr_code','ean_13','data_matrix','codabar']});
-    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-    const vid=$('#vid');vid.srcObject=stream;await vid.play();$('#scan').style.display='flex';
-    let run=true;const stop=()=>{run=false;stream.getTracks().forEach(t=>t.stop());$('#scan').style.display='none'};
-    $('#scanx').onclick=stop;
-    (async function loop(){while(run){try{const r=await det.detect(vid);if(r.length){const c=r[0].rawValue;stop();cb(c);return}}catch(e){}await new Promise(r=>setTimeout(r,250))}})();
-  }catch(e){toast('Câmera indisponível. Digite a série.')}
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}}});
+  }catch(e){toast('Câmera indisponível. Permita o acesso à câmera ou digite o código.');return}
+  box.style.display='flex';msg.textContent='Carregando leitor…';
+  vid.srcObject=stream;try{await vid.play()}catch(e){}
+  tk=stream.getVideoTracks()[0];
+  try{const cap=tk.getCapabilities?tk.getCapabilities():{};const adv=[];if(cap.focusMode&&cap.focusMode.includes('continuous'))adv.push({focusMode:'continuous'});if(adv.length)await tk.applyConstraints({advanced:adv});
+    const tb=$('#scantorch');tb.style.display=cap.torch?'':'none';let on=false;tb.onclick=async()=>{on=!on;try{await tk.applyConstraints({advanced:[{torch:on}]})}catch(e){}}}catch(e){}
+  let det=null,zx=null;
+  if('BarcodeDetector' in window){try{det=new BarcodeDetector()}catch(e){det=null}}
+  try{await loadZX();zx=zxDecoder()}catch(e){if(!det){stop();toast('Leitor não carregou. Conecte à internet uma vez ou digite o código.');return}}
+  msg.textContent='Aponte para o código de barras (aproxime e mantenha firme)';
+  const cv=document.createElement('canvas'),cx=cv.getContext('2d',{willReadFrequently:true});let n=0;
+  while(run){
+    await new Promise(r=>setTimeout(r,120));
+    if(!run||vid.readyState<2||!vid.videoWidth)continue;
+    n++;
+    try{
+      if(det){const r=await det.detect(vid);if(r.length&&r[0].rawValue){done(r[0].rawValue);return}}
+      if(zx){
+        const W=vid.videoWidth,H=vid.videoHeight;
+        // alterna: quadro inteiro e faixa central ampliada
+        if(n%2){const k=Math.min(1,1280/W);cv.width=Math.round(W*k);cv.height=Math.round(H*k);cx.drawImage(vid,0,0,cv.width,cv.height)}
+        else{const sw=W*0.8,sh=H*0.4,k=Math.min(1,1280/sw);cv.width=Math.round(sw*k);cv.height=Math.round(sh*k);cx.drawImage(vid,W*0.1,H*0.3,sw,sh,0,0,cv.width,cv.height)}
+        const c=zx(cv);if(c){done(c);return}
+      }
+    }catch(e){}
+  }
 }
 
 /* ===== Painel ===== */
