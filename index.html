@@ -74,6 +74,14 @@ let ESCOLAS=[];let byInep={};
 function setEscolas(a){ESCOLAS=a;byInep=Object.fromEntries(a.map(e=>[e[1],e]))}
 const DEFAULT_URL=atob('aHR0cHM6Ly9zY3JpcHQuZ29vZ2xlLmNvbS9tYWNyb3Mvcy9BS2Z5Y2J4OS0tMXF0N1B2WEJCVklpaUYySk93NU9HcDdqWmNMZ2NObkQ3VkMxUFhkcmdTX1V0bnpZcFBjVnktak5scUgwZkFkUS9leGVj');
 const FISCAL={nome:'',cargo:'',mat:''};
+let SERV=[];  // [matrícula, nome, nome normalizado]
+const fold=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+function setServ(a){SERV=a.map(r=>[String(r[0]),String(r[1]),fold(r[1])])}
+function buscaServ(q){q=String(q||'').trim();if(q.length<2||!SERV.length)return[];
+  const out=[];
+  if(/^\d+$/.test(q)){for(const r of SERV){if(r[0].startsWith(q)||(q.length>=4&&r[0].includes(q))){out.push(r);if(out.length>=8)break}}return out}
+  const t=fold(q).split(/\s+/).filter(Boolean);
+  for(const r of SERV){if(t.every(x=>r[2].includes(x))){out.push(r);if(out.length>=8)break}}return out}
 const isAdmin=()=>!!(S.meta.user&&S.meta.user.perfil==='admin');
 function setFiscal(){const u=S.meta.user;if(!u)return;const m=String(u.mat);FISCAL.nome=u.nome;FISCAL.mat=m.length===7?m.slice(0,3)+'.'+m.slice(3,6)+'-'+m.slice(6):m;FISCAL.cargo=u.perfil==='admin'?'Fiscal do Contrato nº 0029/2026':'Técnico – Fiscalização do Contrato nº 0029/2026'}
 const CHECKS=[
@@ -246,7 +254,7 @@ function tabAta(inep,e,v){
   <div class="card"><label>Ocorrências</label><textarea rows="4" data-f="ocorr" placeholder="Quantidades, séries divergentes, avarias...">${esc(v.ocorr)}</textarea></div>
   <div class="card"><h3>Fotos (facultativo)</h3><div class="photos">${v.fotos.map((f,i)=>`<img src="${f}" data-ph="${i}">`).join('')}</div>
   <div class="row" style="margin-top:8px"><input type="file" id="ph" accept="image/*" capture="environment" multiple></div></div>
-  <div class="card"><h3>Responsável pela escola</h3><label>Nome</label><input data-f="resp" value="${esc(v.resp)}"><label>Cargo / matrícula</label><input data-f="cargo" value="${esc(v.cargo)}">
+  <div class="card"><h3>Responsável pela escola</h3><label>Nome ou matrícula (digite para buscar)</label><input data-f="resp" id="resp-in" value="${esc(v.resp)}" autocomplete="off"><div id="resp-sug"></div><label>Cargo / matrícula</label><input data-f="cargo" value="${esc(v.cargo)}">
   <label>Assinatura</label><canvas class="sig" id="sig"></canvas><div class="row" style="margin-top:6px"><button class="b s sm" id="sigx">Limpar</button></div></div>
   <div class="row"><button class="b" id="ataBtn" style="flex:1">Gerar ata (imprimir / PDF)</button></div>`;
 }
@@ -255,6 +263,16 @@ function tabAta(inep,e,v){
 function bindEscola(inep){
   const v=V(inep);
   document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{view.tab=b.dataset.tab;render()});
+  const ri=$('#resp-in');
+  if(ri){const sg=$('#resp-sug');
+    const fecha=()=>{sg.innerHTML=''};
+    ri.oninput=()=>{const r=buscaServ(ri.value);
+      sg.innerHTML=r.length?`<div class="card" style="padding:4px 8px;margin:4px 0">${r.map(x=>`<div class="item" data-m="${x[0]}" style="cursor:pointer"><div style="flex:1"><b>${esc(x[1])}</b><br><span class="mut">Matrícula ${esc(x[0])}</span></div></div>`).join('')}</div>`:(ri.value.trim().length>=2&&SERV.length?'<div class="mut">Nenhum servidor encontrado. Pode digitar o nome manualmente.</div>':'');
+      sg.querySelectorAll('[data-m]').forEach(d=>d.onclick=()=>{const x=SERV.find(y=>y[0]===d.dataset.m);if(!x)return;
+        v.resp=x[1];v.respMat=x[0];if(!v.cargo||/^Matrícula/.test(v.cargo))v.cargo='Matrícula nº '+x[0];
+        touch(inep);fecha();render()})};
+    ri.addEventListener('change',()=>{if(ri.value!==v.resp)v.respMat=''});
+    if(!SERV.length&&false)ri.placeholder='';}
   document.querySelectorAll('[data-f]').forEach(el=>{
     el.onchange=()=>{const k=el.dataset.f;let x=el.value;
       if(['almoxCB','almoxEst','contCB','contEst','pct'].includes(k))x=num(x);
@@ -334,7 +352,8 @@ function dados(){
   <div style="margin-top:8px"><button class="b" id="u-add">Cadastrar técnico</button></div></div>
   <div class="card"><h3>Dados de referência (administrador)</h3><div class="mut">Enviados ao servidor e distribuídos aos usuários após o login.</div>
   <label>Lista de escolas (escolas.json)</label><input type="file" id="f-esc" accept=".json">
-  <label>Relação de séries da Positivo (CSV: serie;nf_remessa;trd)</label><input type="file" id="f-ser" accept=".csv,.txt"><div class="mut" id="n-ser">${SERIES.size?SERIES.size+' séries carregadas.':'Nenhuma carregada.'} ${ESCOLAS.length} escola(s).</div></div>`:`<div class="mut" style="margin:0 0 10px">Escolas: ${ESCOLAS.length} · Séries da Positivo: ${SERIES.size}</div>`}
+  <label>Servidores (CSV: matricula;nome)</label><input type="file" id="f-srv" accept=".csv,.txt"><div class="mut">${SERV.length} servidores carregados.</div>
+  <label>Relação de séries da Positivo (CSV: serie;nf_remessa;trd)</label><input type="file" id="f-ser" accept=".csv,.txt"><div class="mut" id="n-ser">${SERIES.size?SERIES.size+' séries carregadas.':'Nenhuma carregada.'} ${ESCOLAS.length} escola(s).</div></div>`:`<div class="mut" style="margin:0 0 10px">Escolas: ${ESCOLAS.length} · Séries da Positivo: ${SERIES.size} · Servidores: ${SERV.length}</div>`}
   <div class="card"><h3>Almoxarifado – quantidades por escola</h3><div class="mut">${nQ} escolas. CSV: inep;chromebooks;estacoes (ou aba Almox_Qtd da planilha)</div><input type="file" id="f-aq" accept=".csv,.txt" style="margin-top:8px"></div>
   <div class="card"><h3>Almoxarifado – itens por escola (opcional)</h3><div class="mut">${nAl} itens. CSV: inep;tipo(CB ou EST);serie;tombamento (ou aba Almox_Itens)</div><input type="file" id="f-ai" accept=".csv,.txt" style="margin-top:8px"></div>
   <div class="card"><h3>Exportar</h3><div class="grid"><button class="b" id="x-res">Resumo por escola (CSV)</button><button class="b" id="x-it">Equipamentos (CSV)</button><button class="b s" id="x-bk">Backup completo (JSON)</button><button class="b s" id="x-ib">Restaurar backup</button></div><input type="file" id="f-bk" accept=".json" style="display:none"></div>
@@ -362,6 +381,8 @@ function bindDados(){
       $('#u-mat').value=$('#u-nome').value=$('#u-mail').value='';loadUsers()}catch(e){toast(e.message)}};
     $('#f-esc').onchange=async e=>{try{const a=JSON.parse(await readTxt(e.target.files[0]));if(!Array.isArray(a)||!a.length||!Array.isArray(a[0])||a[0].length<8)throw new Error('Arquivo inválido');
       setEscolas(a);await DB.set('escolas',a);await api('setEscolas',{escolas:a});toast(a.length+' escolas enviadas ao servidor');render()}catch(x){toast('Falha: '+x.message)}};
+    $('#f-srv').onchange=async e=>{try{const rows=parseCSV(await readTxt(e.target.files[0])).filter(r=>/^\d{4,}$/.test(r[0])&&r[1]);if(!rows.length)throw new Error('Nenhuma linha válida');
+      const arr=rows.map(r=>[r[0],r[1]]);toast('Enviando '+arr.length+' servidores…');await api('setServidores',{servidores:arr});setServ(arr);await DB.set('servidores',arr);toast(arr.length+' servidores enviados ao servidor');render()}catch(x){toast('Falha: '+x.message)}};
     $('#f-ser').onchange=async e=>{const rows=parseCSV(await readTxt(e.target.files[0])).filter(r=>/^[A-Za-z0-9]{6,}$/.test(r[0])&&r[0].toLowerCase()!=='serie');
       const arr=rows.map(r=>[norm(r[0]),r[1]||'',r[2]||'']);SERIES=new Map(arr.map(r=>[r[0],[r[1],r[2]]]));await DB.set('series',arr);
       try{await api('setSeries',{series:arr});toast(SERIES.size+' séries enviadas ao servidor')}catch(x){toast(SERIES.size+' séries carregadas aqui; falha ao enviar: '+x.message)}render()};
@@ -421,7 +442,7 @@ async function api(action,body){const c=new AbortController(),t=setTimeout(()=>c
     return j}catch(e){if(e.name==='TypeError'||e.name==='AbortError')throw new Error('Sem conexão com o servidor');throw e}finally{clearTimeout(t)}}
 function lite(v){const o=JSON.parse(JSON.stringify(Object.assign({},v,{fotos:[],assin:'',fotoUrl:[],assinUrl:'',dirty:false})));o.nFotos=(v.fotos||[]).length;o.temAssin=!!v.assin;return o}
 function summary(inep){const e=byInep[inep],v=V(inep),a=almoxQ(inep);let b=0;for(const it of v.items)if(checkItem(inep,it).length)b++;
-  return{escola:e[2],municipio:e[0],prev_cb:prevCB(e),almox_cb:a.cb,cont_cb:v.contCB,prev_est:prevEst(e),almox_est:a.est,cont_est:v.contEst,n_itens:v.items.length,n_ocorr:b,situacao:STAT[status(inep)][0],divergencias:diverg(inep).join(' | '),data:v.data,resp:v.resp,cargo:v.cargo,ocorr:v.ocorr}}
+  return{escola:e[2],municipio:e[0],prev_cb:prevCB(e),almox_cb:a.cb,cont_cb:v.contCB,prev_est:prevEst(e),almox_est:a.est,cont_est:v.contEst,n_itens:v.items.length,n_ocorr:b,situacao:STAT[status(inep)][0],divergencias:diverg(inep).join(' | '),data:v.data,resp:v.resp+(v.respMat?' ('+v.respMat+')':''),cargo:v.cargo,ocorr:v.ocorr}}
 function itemsOut(inep,v){return v.items.map(it=>{const p=SERIES.get(norm(it.serie))||['',''];return{tipo:it.tipo,serie:it.serie,tomb:it.tomb,nf:p[0],trd:p[1],estado:ESTADOS[it.estado]||'',ocorr:checkItem(inep,it).join(' | '),obs:it.obs||''}})}
 function adopt(k,rv,rec){const l=S.visits[k];const nv=Object.assign({},rv);nv.fotos=l?l.fotos:[];nv.fotoUrl=l?l.fotoUrl:[];nv.assin=l?l.assin:'';nv.assinUrl=l?l.assinUrl:'';nv.dirty=false;nv.srv=rec;S.visits[k]=nv}
 async function sync(manual){
@@ -440,8 +461,9 @@ async function sync(manual){
       if(v.assin&&!v.assinUrl){const r=await api('pushFile',{inep:k,kind:'assinatura',idx:0,dataUrl:v.assin});v.assinUrl=r.url;files++;save()}}
     const full=manual||!S.meta.lastAlmox||Date.now()-S.meta.lastAlmox>6*3600e3;
     const cfg=manual||!ESCOLAS.length||!SERIES.size;
-    const r=await api('pull',{since:S.meta.lastPull||0,almox:full,cfg});
+    const r=await api('pull',{since:S.meta.lastPull||0,almox:full,cfg,servVer:S.meta.servVer||''});
     if(r.escolas&&r.escolas.length){setEscolas(r.escolas);await DB.set('escolas',r.escolas);cfgNew=true}
+    if(r.servidores){setServ(r.servidores);await DB.set('servidores',r.servidores);S.meta.servVer=r.servVer;cfgNew=true}
     if(r.series&&r.series.length){const arr=r.series.map(x=>[norm(x[0]),x[1]||'',x[2]||'']);SERIES=new Map(arr.map(x=>[x[0],[x[1],x[2]]]));await DB.set('series',arr);cfgNew=true}
     for(const x of r.visits||[]){const v=S.visits[x.inep];if(v&&v.dirty)continue;if(v&&(v.srv||0)>=x.received)continue;adopt(x.inep,x.visit,x.received);pulled++}
     if(r.almoxQtd)Object.assign(S.almoxQtd,r.almoxQtd);
@@ -486,7 +508,7 @@ async function loadUsers(){const el=$('#u-list');if(!el)return;
 
 /* ===== Início ===== */
 (async function(){
-  try{await DB.open();S=Object.assign(S,await DB.get('state')||{});const ar=await DB.get('series');if(ar)SERIES=new Map(ar.map(r=>[r[0],[r[1],r[2]]]));const es=await DB.get('escolas');if(es)setEscolas(es)}catch(e){toast('Armazenamento indisponível: os dados não serão salvos')}
+  try{await DB.open();S=Object.assign(S,await DB.get('state')||{});const ar=await DB.get('series');if(ar)SERIES=new Map(ar.map(r=>[r[0],[r[1],r[2]]]));const es=await DB.get('escolas');if(es)setEscolas(es);const sv=await DB.get('servidores');if(sv)setServ(sv)}catch(e){toast('Armazenamento indisponível: os dados não serão salvos')}
   S.meta=Object.assign({url:DEFAULT_URL,session:'',user:null,device:'',lastPull:0,lastSync:0,lastAlmox:0},S.meta||{});delete S.meta.token;if(DEFAULT_URL)S.meta.url=DEFAULT_URL;
   if(S.meta.session){setFiscal();render();syncChip();if(navigator.onLine)setTimeout(()=>sync(false),2500)}else showLogin('');
   if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});
