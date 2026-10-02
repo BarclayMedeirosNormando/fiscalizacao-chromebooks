@@ -83,7 +83,7 @@ function buscaServ(q){q=String(q||'').trim();if(q.length<2||!SERV.length)return[
   const t=fold(q).split(/\s+/).filter(Boolean);
   for(const r of SERV){if(t.every(x=>r[2].includes(x))){out.push(r);if(out.length>=8)break}}return out}
 const isAdmin=()=>!!(S.meta.user&&S.meta.user.perfil==='admin');
-function setFiscal(){const u=S.meta.user;if(!u)return;const m=String(u.mat);FISCAL.nome=u.nome;FISCAL.mat=m.length===7?m.slice(0,3)+'.'+m.slice(3,6)+'-'+m.slice(6):m;FISCAL.cargo=u.perfil==='admin'?'Fiscal do Contrato nº 0029/2026':'Técnico – Fiscalização do Contrato nº 0029/2026'}
+function setFiscal(){const u=S.meta.user;if(!u)return;const m=String(u.mat);FISCAL.nome=u.nome;FISCAL.mat=m.length===7?m.slice(0,3)+'.'+m.slice(3,6)+'-'+m.slice(6):m;FISCAL.cargo=u.perfil==='admin'?'Fiscal do Contrato nº 0029/2026':'Técnico – Fiscalização do Contrato nº 0029/2026';navLabel()}
 const CHECKS=[
  ['qtd','Quantidade e volumes conforme Anexo V / saída do Almoxarifado'],
  ['mod','Modelo N2320 (Anexo I)'],
@@ -180,6 +180,7 @@ function autoChecks(inep){const v=V(inep),e=byInep[inep];if(!e)return false;v.ma
   return ch}
 
 /* ===== Navegação ===== */
+function navLabel(){const b=document.querySelector('nav [data-t=dados]');if(b)b.textContent=isAdmin()?'Dados':'Conta'}
 function go(t,inep){view.t=t;view.inep=inep||null;if(inep)view.tab='resumo';render();window.scrollTo(0,0)}
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>go(b.dataset.t));
 $('#back').onclick=()=>go('escolas');
@@ -191,7 +192,7 @@ function render(){
   const m=$('#app');
   if(view.inep){const e=byInep[view.inep];$('#title').textContent=e[2];m.innerHTML=escola(view.inep);bindEscola(view.inep)}
   else if(view.t==='painel'){$('#title').textContent='Painel';m.innerHTML=painel()}
-  else if(view.t==='dados'){$('#title').textContent='Dados e exportação';m.innerHTML=dados();bindDados()}
+  else if(view.t==='dados'){$('#title').textContent=isAdmin()?'Dados e exportação':'Minha conta';m.innerHTML=dados();bindDados()}
   else{$('#title').textContent='Escolas';m.innerHTML=lista();bindLista()}
 }
 
@@ -233,7 +234,7 @@ function tabResumo(inep,e,v,a){
   <table class="cmp"><tr><th></th><th>Previsto (Anexo V)</th><th>Almoxarifado</th><th>Contado</th></tr>
   <tr><td>Chromebooks</td><td>${prevCB(e)}</td><td><input type="number" inputmode="numeric" data-f="almoxCB" value="${a.cb??''}" placeholder="–"></td><td><input type="number" inputmode="numeric" data-f="contCB" value="${v.contCB??''}" placeholder="–"></td></tr>
   <tr><td>Estações de recarga</td><td>${prevEst(e)}</td><td><input type="number" inputmode="numeric" data-f="almoxEst" value="${a.est??''}" placeholder="–"></td><td><input type="number" inputmode="numeric" data-f="contEst" value="${v.contEst??''}" placeholder="–"></td></tr></table>
-  <div class="mut" style="margin-top:6px">Anexo V: ${e[6]} Chromebooks por estação. ${a.data?'Saída do Almoxarifado: '+esc(a.data)+'.':'Almoxarifado pré-preenchido quando a saída é importada em "Dados".'}</div></div>
+  <div class="mut" style="margin-top:6px">Anexo V: ${e[6]} Chromebooks por estação. ${a.data?'Saída do Almoxarifado: '+esc(a.data)+'.':'Almoxarifado pré-preenchido quando a saída é importada pelo administrador.'}</div></div>
   <div class="card"><h3>Diferenças</h3><table class="cmp"><tr><th></th><th>Almox − previsto</th><th>Contado − Almox</th><th>Contado − previsto</th></tr>
   <tr><td>Chromebooks</td>${cell(prevCB(e),a.cb)}${cell(a.cb,v.contCB)}${cell(prevCB(e),v.contCB)}</tr>
   <tr><td>Estações</td>${cell(prevEst(e),a.est)}${cell(a.est,v.contEst)}${cell(prevEst(e),v.contEst)}</tr></table>
@@ -393,7 +394,7 @@ document.addEventListener('click',e=>{const c=e.target.closest('#app [data-i]');
 /* ===== Dados / importação / exportação ===== */
 function dados(){
   const nAl=Object.keys(S.almoxItems).length,nQ=Object.keys(S.almoxQtd).length;
-  return `<!-- -->
+  const H=`<!-- -->
   <div class="card"><h3>Conta e sincronização</h3>
   <div>${esc(S.meta.user?S.meta.user.nome:'')} <span class="mut">· matrícula ${esc(S.meta.user?S.meta.user.mat:'')} · ${isAdmin()?'administrador':'técnico'}</span></div>
   <label>Nome deste aparelho (opcional)</label><input id="s-dev" value="${esc(S.meta.device)}">
@@ -401,7 +402,7 @@ function dados(){
   <div id="a-form" style="display:none"><label>Senha atual</label><input id="a-at" type="password" autocomplete="current-password"><label>Nova senha (mínimo 8 caracteres)</label><input id="a-nv" type="password" autocomplete="new-password"><div style="margin-top:8px"><button class="b" id="a-ok">Salvar senha</button></div></div>
   <div class="grid" style="margin-top:10px"><button class="b s" id="s-test">Testar conexão</button><button class="b" id="s-go">Sincronizar agora</button></div>
   <div class="mut" style="margin-top:8px">Pendentes: ${pending()} · Última sincronização: ${S.meta.lastSync?new Date(S.meta.lastSync).toLocaleString('pt-BR'):'nunca'}<br>Sincroniza sozinho quando há internet. Sobem as conferências, fotos e assinaturas; descem as escolas, a relação de séries e os dados do Almoxarifado.</div></div>
-  ${isAdmin()?`<div class="card"><h3>Usuários (administrador)</h3><div id="u-list" class="mut">Carregando…</div><div id="u-msg" style="margin:8px 0"></div>
+  <!--ADM-->${isAdmin()?`<div class="card"><h3>Usuários (administrador)</h3><div id="u-list" class="mut">Carregando…</div><div id="u-msg" style="margin:8px 0"></div>
   <label>Matrícula</label><input id="u-mat" inputmode="numeric"><label>Nome</label><input id="u-nome"><label>E-mail</label><input id="u-mail" type="email" autocapitalize="off">
   <div style="margin-top:8px"><button class="b" id="u-add">Cadastrar técnico</button></div></div>
   <div class="card"><h3>Dados de referência (administrador)</h3><div class="mut">Enviados ao servidor e distribuídos aos usuários após o login.</div>
@@ -414,6 +415,7 @@ function dados(){
   <div class="card"><h3>Exportar</h3><div class="grid"><button class="b" id="x-res">Resumo por escola (CSV)</button><button class="b" id="x-it">Equipamentos (CSV)</button><button class="b s" id="x-bk">Backup completo (JSON)</button><button class="b s" id="x-ib">Restaurar backup</button></div><input type="file" id="f-bk" accept=".json" style="display:none"></div>
   <div class="card"><h3>Sobre</h3><div class="mut">Contrato nº 0029/2026 – Positivo Tecnologia S.A. As conferências ficam neste aparelho e são enviadas ao servidor quando há internet. Faça o backup ao final do dia.</div></div>
   <div class="card"><button class="b d" id="x-clr">Apagar todas as conferências</button></div>`;
+  return isAdmin()?H:H.slice(0,H.indexOf('<!--ADM-->'));
 }
 function parseCSV(txt){
   txt=txt.replace(/^﻿/,'');const first=txt.split(/\r?\n/)[0]||'';const sep=first.split(';').length>=first.split(',').length?';':',';
@@ -429,6 +431,7 @@ function bindDados(){
   $('#a-sair').onclick=logout;
   $('#a-troca').onclick=()=>{const f=$('#a-form');f.style.display=f.style.display==='none'?'block':'none'};
   $('#a-ok').onclick=async()=>{try{await api('changePassword',{atual:$('#a-at').value,nova:$('#a-nv').value});$('#a-at').value=$('#a-nv').value='';$('#a-form').style.display='none';toast('Senha alterada')}catch(e){toast(e.message)}};
+  if(!isAdmin())return;
   if(isAdmin()){
     loadUsers();
     $('#u-add').onclick=async()=>{try{const r=await api('addUser',{mat:$('#u-mat').value,nome:$('#u-nome').value,email:$('#u-mail').value});
@@ -595,7 +598,7 @@ async function confirmaMapa(){const L=MAPA.linhas,msg=$('#map-msg');
 let tmpPw='';
 function showLogin(msg,trocar){const lg=$('#login');lg.style.display='flex';$('#l-msg').textContent=msg||'';
   $('#l-srv').style.display=(DEFAULT_URL||(S.meta&&S.meta.url))?'none':'block';$('#l-form').style.display=trocar?'none':'block';$('#l-troca').style.display=trocar?'block':'none'}
-function enter(){$('#login').style.display='none';$('#l-pw').value='';setFiscal();render();syncChip();if(navigator.onLine)setTimeout(()=>sync(false),500)}
+function enter(){$('#login').style.display='none';navLabel();$('#l-pw').value='';setFiscal();render();syncChip();if(navigator.onLine)setTimeout(()=>sync(false),500)}
 async function logout(){try{if(navigator.onLine&&S.meta.session)await api('logout',{})}catch(e){}S.meta.session='';S.meta.user=null;save();showLogin('')}
 $('#l-go').onclick=async()=>{const m=$('#l-msg');m.textContent='';
   const url=(DEFAULT_URL||$('#l-url').value||S.meta.url).trim();if(!url){m.textContent='Informe o endereço do servidor.';return}
