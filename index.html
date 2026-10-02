@@ -29,6 +29,8 @@ button.b{background:var(--pri);color:var(--priink);border:0;border-radius:8px;pa
 button.b.s{background:transparent;color:var(--pri);border:1px solid var(--pri)}
 button.b.d{background:var(--bad);color:#fff}
 button.sm{padding:6px 10px;font-size:13px}
+.card[class*=st-]{border-left:6px solid var(--line)}.st-andamento{border-left-color:#d99a00!important}.st-confere{border-left-color:var(--ok)!important}.st-divergencia{border-left-color:var(--bad)!important}
+.pg{height:6px;border-radius:99px;background:var(--line);margin-top:8px;overflow:hidden}.pg i{display:block;height:100%;background:var(--ok);border-radius:99px}
 .tag{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700}
 .t-ok{background:var(--okbg);color:var(--ok)}.t-bad{background:var(--badbg);color:var(--bad)}.t-warn{background:var(--warnbg);color:var(--warn)}.t-n{background:var(--line);color:var(--mut)}
 .mut{color:var(--mut);font-size:13px}
@@ -57,7 +59,7 @@ canvas.sig{width:100%;height:150px;border:1px dashed var(--mut);border-radius:8p
 <header><button id="back" style="display:none">‹ Voltar</button><h1 id="title">Fiscalização Chromebooks</h1><button id="sync" style="font-size:12px"></button><button id="menu">⋯</button></header>
 <main id="app"></main>
 <nav><button data-t="escolas" class="on">Escolas</button><button data-t="painel">Painel</button><button data-t="dados">Dados</button></nav>
-<div id="scan"><video id="vid" playsinline muted></video><div id="scanmsg" style="color:#fff;text-align:center;padding:8px;font-size:14px;background:#000"></div><div class="bar"><button class="b s" id="scantorch" style="display:none;color:#fff;border-color:#fff">Lanterna</button><button class="b s" id="scanx" style="flex:1;color:#fff;border-color:#fff">Fechar</button></div></div>
+<div id="scan"><video id="vid" playsinline muted></video><div id="scanmsg" style="color:#fff;text-align:center;padding:8px;font-size:14px;background:#000"></div><div class="bar"><button class="b s" id="scanskip" style="display:none;color:#fff;border-color:#fff">Pular</button><button class="b s" id="scantorch" style="display:none;color:#fff;border-color:#fff">Lanterna</button><button class="b s" id="scanx" style="flex:1;color:#fff;border-color:#fff">Fechar</button></div></div>
 <div id="login"><div class="box"><h2>Fiscalização Chromebooks</h2><div class="mut">Contrato nº 0029/2026 · acesso restrito</div>
 <div id="l-srv"><label>Endereço do servidor (termina em /exec)</label><input id="l-url" autocapitalize="off" autocomplete="off"></div>
 <div id="l-form"><label>Matrícula</label><input id="l-mat" inputmode="numeric" autocomplete="username"><label>Senha</label><input id="l-pw" type="password" autocomplete="current-password">
@@ -134,8 +136,8 @@ function checkItem(inep,it){
         else if(al.inep!==String(inep))f.push('Almoxarifado enviou para outra escola (INEP '+al.inep+')');
         else if(it.tomb&&al.tomb&&norm(al.tomb)!==norm(it.tomb))f.push('Tombamento difere do Almoxarifado ('+al.tomb+')');
       }
-      let dup=0;for(const k in S.visits)for(const x of S.visits[k].items)if(x!==it&&x.tipo==='CB'&&norm(x.serie)===s)dup++;
-      if(dup)f.push('Série duplicada');
+      let dup='';for(const k in S.visits)for(const x of S.visits[k].items)if(x!==it&&x.tipo==='CB'&&norm(x.serie)===s)dup=dup||(String(k)===String(inep)?'nesta escola':'na escola '+(byInep[k]?byInep[k][2]:k));
+      if(dup)f.push('Série duplicada ('+dup+')');
     }
   }
   if(it.tomb){let d=0;for(const k in S.visits)for(const x of S.visits[k].items)if(x!==it&&norm(x.tomb)===norm(it.tomb)&&x.tipo===it.tipo)d++;if(d)f.push('Tombamento duplicado')}
@@ -201,16 +203,21 @@ function lista(){
   const q=norm(view.q).toLowerCase();
   let arr=ESCOLAS.filter(e=>!q||(e[0]+' '+e[1]+' '+e[2]).toLowerCase().includes(view.q.toLowerCase().trim()));
   if(view.filtro!=='todas')arr=arr.filter(e=>status(e[1])===view.filtro);
+  if(view.mun)arr=arr.filter(e=>e[0]===view.mun);
+  const muns=[...new Set(ESCOLAS.map(e=>e[0]))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
   const tot=arr.length;arr=arr.slice(0,80);
   return (ESCOLAS.length?'':`<div class="card"><b class="bad">Nenhuma escola carregada.</b><div class="mut">Conecte-se à internet e toque em Sincronizar. ${isAdmin()?'Como administrador, envie antes a lista de escolas em Dados.':''}</div></div>`)+`<input id="q" type="search" placeholder="Buscar escola, município ou INEP" value="${esc(view.q)}">
   <div class="row" style="margin:8px 0;flex-wrap:wrap">${['todas','pendente','andamento','confere','divergencia'].map(f=>`<button class="b sm ${view.filtro===f?'':'s'}" data-f="${f}">${f==='todas'?'Todas':STAT[f][0]}</button>`).join('')}</div>
+  <select id="mun" style="margin-bottom:8px"><option value="">Todos os municípios</option>${muns.map(m=>`<option ${view.mun===m?'selected':''}>${esc(m)}</option>`).join('')}</select>
   <div class="mut" style="margin-bottom:6px">${tot} escola(s)${tot>80?' – mostrando 80, refine a busca':''}</div>`+
-  arr.map(e=>{const s=status(e[1]);return `<div class="card" data-i="${e[1]}" style="cursor:pointer"><div class="row sp"><b>${esc(e[2])}</b><span style="text-align:right"><span class="tag ${STAT[s][1]}">${STAT[s][0]}</span>${isAdmin()&&s!=='pendente'?`<br><button class="b sm s" data-reset="${e[1]}" style="margin-top:6px">Resetar</button>`:''}</span></div>
-  <div class="mut">${esc(e[0])} · INEP ${e[1]} · ${e[3].toLowerCase()}</div><div class="mut">Previsto: ${prevCB(e)} Chromebooks · ${prevEst(e)} estações</div></div>`}).join('');
+  arr.map(e=>{const s=status(e[1]),pg=progresso(e[1]);return `<div class="card st-${s}" data-i="${e[1]}" style="cursor:pointer"><div class="row sp"><b>${esc(e[2])}</b><span style="text-align:right"><span class="tag ${STAT[s][1]}">${STAT[s][0]}</span>${isAdmin()&&s!=='pendente'?`<br><button class="b sm s" data-reset="${e[1]}" style="margin-top:6px">Resetar</button>`:''}</span></div>
+  <div class="mut">${esc(e[0])} · INEP ${e[1]} · ${e[3].toLowerCase()}</div><div class="mut">Previsto: ${prevCB(e)} Chromebooks · ${prevEst(e)} estações${pg.n?' · '+pg.n+' registrado(s)':''}</div>${s==='pendente'?'':`<div class="pg"><i style="width:${pg.p}%"></i></div><div class="mut" style="font-size:12px">Checklist ${pg.p}%</div>`}</div>`}).join('');
 }
+function progresso(inep){const v=S.visits[inep];if(!v)return{p:0,n:0};const t=CHECKS.length,d=CHECKS.filter(c=>v.checks&&v.checks[c[0]]).length;return{p:t?Math.round(d*100/t):0,n:v.items.length}}
 function bindLista(){
   const q=$('#q');q.oninput=()=>{view.q=q.value;const p=q.selectionStart;render();const n=$('#q');n.focus();n.setSelectionRange(p,p)};
   document.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{view.filtro=b.dataset.f;render()});
+  $('#mun').onchange=e=>{view.mun=e.target.value;render()};
   document.querySelectorAll('[data-i]').forEach(c=>c.onclick=()=>go('escolas',c.dataset.i));
   document.querySelectorAll('[data-reset]').forEach(b=>b.onclick=e=>{e.stopPropagation();resetVisita(b.dataset.reset)});
 }
@@ -253,6 +260,7 @@ function tabItens(inep,e,v){
   <div class="grid"><div><label>Tipo</label><select id="n-tipo"><option value="CB">Chromebook</option><option value="EST">Estação de recarga</option></select></div>
   <div><label>Estado</label><select id="n-est">${Object.entries(ESTADOS).map(([k,x])=>`<option value="${k}">${x}</option>`).join('')}</select></div></div>
   <label>Nº de série</label><div class="row"><input id="n-serie" class="mono" autocapitalize="characters" autocomplete="off" placeholder="4AK..."><button class="b s" id="n-scan" style="white-space:nowrap">Escanear</button></div>
+  <button class="b" id="n-seq" style="width:100%;margin-top:8px">Escanear em sequência (série + tombamento)</button>
   <label>Tombamento</label><div class="row"><input id="n-tomb" class="mono" autocomplete="off"><button class="b s" id="n-scan2" style="white-space:nowrap">Escanear</button></div>
   <label>Observação</label><input id="n-obs">
   <div id="n-prev" class="mut" style="margin-top:6px"></div>
@@ -303,7 +311,7 @@ function bindEscola(inep){
   const c=document.querySelector('[data-act=concluir]');if(c)c.onclick=()=>{v.concluida=!v.concluida;if(v.concluida&&!v.data)v.data=nowLocal();touch(inep);render()};
   const add=$('#n-add');
   if(add){
-    const ser=$('#n-serie'),prev=()=>{const it={tipo:$('#n-tipo').value,serie:ser.value,tomb:$('#n-tomb').value,estado:$('#n-est').value};const f=ser.value||it.tomb?checkItem(inep,it):[];const p=SERIES.get(norm(ser.value));
+    const ser=$('#n-serie'),auto=()=>{const a=S.almoxItems[norm(ser.value)];const t=$('#n-tomb');if(a&&a.tomb&&!t.value)t.value=a.tomb},prev=()=>{auto();const it={tipo:$('#n-tipo').value,serie:ser.value,tomb:$('#n-tomb').value,estado:$('#n-est').value};const f=ser.value||it.tomb?checkItem(inep,it):[];const p=SERIES.get(norm(ser.value));
       $('#n-prev').innerHTML=(p?`NF ${p[0]} · TRD ${p[1]}<br>`:'')+(f.length?f.map(x=>`<span class="bad">• ${esc(x)}</span>`).join('<br>'):(ser.value?'<span class="good">Confere</span>':''))};
     ['n-serie','n-tomb','n-tipo','n-est'].forEach(id=>$('#'+id).oninput=prev);
     add.onclick=()=>{const it={tipo:$('#n-tipo').value,serie:norm(ser.value),tomb:$('#n-tomb').value.trim(),estado:$('#n-est').value,obs:$('#n-obs').value.trim()};
@@ -311,6 +319,17 @@ function bindEscola(inep){
       if(v.items.some(x=>x.tipo===it.tipo&&it.serie&&norm(x.serie)===it.serie)){toast('Série já registrada nesta escola');return}
       v.items.unshift(it);touch(inep);render();toast('Adicionado');setTimeout(()=>{const s=$('#n-serie');s&&s.focus()},50)};
     $('#n-scan').onclick=()=>scan(code=>{ser.value=norm(code);prev();$('#n-tomb').focus()});
+    $('#n-seq').onclick=()=>{let pend=null,n=0;const tipo=$('#n-tipo').value,est=$('#n-est').value;
+      const fim=(tomb)=>{const it={tipo,serie:pend,tomb:String(tomb||'').trim(),estado:est,obs:''};v.items.unshift(it);touch(inep);n++;
+        const f=checkItem(inep,it);scanSay(n+' registrado(s) · '+(pend||'sem série')+(f.length?' ⚠ '+f[0]:' ✓ confere')+' — leia a próxima SÉRIE',f.length?'warn':'ok');pend=null;$('#scanskip').style.display='none'};
+      scan(code=>{code=norm(code);
+        if(pend===null){
+          if(v.items.some(x=>x.tipo===tipo&&norm(x.serie)===code)){scanSay('Série '+code+' já registrada nesta escola','bad');return}
+          pend=code;const a=S.almoxItems[code];
+          if(a&&a.tomb){fim(a.tomb);return}
+          scanSay('Série '+code+' lida — leia o TOMBAMENTO (ou toque em Pular)','');$('#scanskip').style.display=''}
+        else{if(code===pend)return;fim(code)}
+      },{keep:true,skip:()=>{if(pend!==null)fim('')},msg:'Leia a SÉRIE do primeiro equipamento',onClose:()=>{render();if(n)toast(n+' equipamento(s) adicionado(s)')}})};
     $('#n-scan2').onclick=()=>scan(code=>{$('#n-tomb').value=String(code).trim();prev()});
   }
   const ph=$('#ph');if(ph)ph.onchange=async()=>{for(const f of ph.files){v.fotos.push(await shrink(f));(v.fotoUrl=v.fotoUrl||[]).push('')}touch(inep);render()};
@@ -344,10 +363,13 @@ function zxDecoder(){
     try{return rd.decode(new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.RGBLuminanceSource(l,w,hh)))).getText()}catch(e){return null}
   };
 }
-async function scan(cb){
-  const box=$('#scan'),vid=$('#vid'),msg=$('#scanmsg');let run=true,tk=null;
-  const stop=()=>{run=false;if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;box.style.display='none'};
-  const done=c=>{stop();if(navigator.vibrate)try{navigator.vibrate(80)}catch(e){}cb(String(c).trim())};
+let scanSay=()=>{};
+async function scan(cb,o){
+  o=o||{};const box=$('#scan'),vid=$('#vid'),msg=$('#scanmsg'),sk=$('#scanskip');let run=true,tk=null,lastC='',lastT=0;
+  const stop=()=>{if(!run)return;run=false;if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;box.style.display='none';sk.style.display='none';scanSay=()=>{};if(o.onClose)o.onClose()};
+  scanSay=(t,k)=>{msg.textContent=t;msg.style.background=k==='ok'?'#14532d':k==='bad'?'#7f1d1d':k==='warn'?'#713f12':'#000'};
+  sk.style.display=o.skip?'':'none';sk.onclick=()=>{if(o.skip)o.skip()};
+  const done=c=>{c=String(c).trim();if(o.keep){if(c===lastC&&Date.now()-lastT<2500)return;lastC=c;lastT=Date.now();if(navigator.vibrate)try{navigator.vibrate(80)}catch(e){}if(cb(c)==='stop')stop();return}stop();if(navigator.vibrate)try{navigator.vibrate(80)}catch(e){}cb(c)};
   $('#scanx').onclick=stop;
   try{
     stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}}});
@@ -360,20 +382,20 @@ async function scan(cb){
   let det=null,zx=null;
   if('BarcodeDetector' in window){try{det=new BarcodeDetector()}catch(e){det=null}}
   try{await loadZX();zx=zxDecoder()}catch(e){if(!det){stop();toast('Leitor não carregou. Conecte à internet uma vez ou digite o código.');return}}
-  msg.textContent='Aponte para o código de barras (aproxime e mantenha firme)';
+  scanSay(o.msg||'Aponte para o código de barras (aproxime e mantenha firme)');
   const cv=document.createElement('canvas'),cx=cv.getContext('2d',{willReadFrequently:true});let n=0;
   while(run){
     await new Promise(r=>setTimeout(r,120));
     if(!run||vid.readyState<2||!vid.videoWidth)continue;
     n++;
     try{
-      if(det){const r=await det.detect(vid);if(r.length&&r[0].rawValue){done(r[0].rawValue);return}}
+      if(det){const r=await det.detect(vid);if(r.length&&r[0].rawValue){done(r[0].rawValue);if(!o.keep)return}}
       if(zx){
         const W=vid.videoWidth,H=vid.videoHeight;
         // alterna: quadro inteiro e faixa central ampliada
         if(n%2){const k=Math.min(1,1280/W);cv.width=Math.round(W*k);cv.height=Math.round(H*k);cx.drawImage(vid,0,0,cv.width,cv.height)}
         else{const sw=W*0.8,sh=H*0.4,k=Math.min(1,1280/sw);cv.width=Math.round(sw*k);cv.height=Math.round(sh*k);cx.drawImage(vid,W*0.1,H*0.3,sw,sh,0,0,cv.width,cv.height)}
-        const c=zx(cv);if(c){done(c);return}
+        const c=zx(cv);if(c){done(c);if(!o.keep)return}
       }
     }catch(e){}
   }
