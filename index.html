@@ -163,6 +163,22 @@ function status(inep){
 const STAT={pendente:['Pendente','t-n'],andamento:['Em andamento','t-warn'],confere:['Confere','t-ok'],divergencia:['Divergência','t-bad']};
 function amostraAlvo(v){const t=v.contCB??0;return v.modo==='todos'?t:Math.min(t,Math.max(t?1:0,Math.ceil(t*(+v.pct||0)/100)))}
 
+/* ===== Marcação automática dos itens verificados ===== */
+const AUTO_CHK=['qtd','mod','est','acc','serie','foto'];
+function autoChecks(inep){const v=V(inep),e=byInep[inep];if(!e)return false;v.man=v.man||{};v.auto=v.auto||{};
+  const a=almoxQ(inep),cbs=v.items.filter(i=>i.tipo==='CB'),alvo=amostraAlvo(v),amostra=cbs.length>0&&cbs.length>=alvo;
+  const want={
+    qtd:v.contCB!=null&&v.contEst!=null&&v.contCB===prevCB(e)&&v.contEst===prevEst(e)&&(a.cb==null||a.cb===v.contCB)&&(a.est==null||a.est===v.contEst),
+    serie:amostra&&SERIES.size>0&&cbs.every(i=>i.serie&&SERIES.has(norm(i.serie))&&!checkItem(inep,i).some(m=>/^(Série|Tombamento|Almoxarifado)/.test(m))),
+    mod:amostra&&!cbs.some(i=>i.estado==='modelo')&&(!SERIES.size||cbs.every(i=>SERIES.has(norm(i.serie)))),
+    est:amostra&&!v.items.some(i=>i.estado==='avaria'),
+    acc:amostra&&!v.items.some(i=>i.estado==='acess'),
+    foto:(v.fotos||[]).length>0};
+  let ch=false;
+  for(const k of AUTO_CHK){if(v.man[k])continue;const val=!!want[k];if(!val&&!v.auto[k])continue;
+    if(!!v.checks[k]!==val||!!v.auto[k]!==val){v.checks[k]=val;v.auto[k]=val;ch=true}}
+  return ch}
+
 /* ===== Navegação ===== */
 function go(t,inep){view.t=t;view.inep=inep||null;if(inep)view.tab='resumo';render();window.scrollTo(0,0)}
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>go(b.dataset.t));
@@ -201,7 +217,7 @@ function bindLista(){
 /* ===== Tela da escola ===== */
 function dif(a,b){return a==null||b==null?'–':(b-a)}
 function cell(a,b){const d=dif(a,b);return d==='–'?'<td>–</td>':`<td class="${d===0?'good':'bad'}">${d>0?'+'+d:d}</td>`}
-function escola(inep){
+function escola(inep){if(autoChecks(inep))save();
   const e=byInep[inep],v=V(inep),a=almoxQ(inep),s=status(inep);
   const tabs=[['resumo','Quantidades'],['itens','Equipamentos'],['ata','Ata']];
   let h=`<div class="card"><div class="row sp"><div><b>${esc(e[2])}</b><div class="mut">${esc(e[0])} · INEP ${inep} · ${e[3].toLowerCase()}</div></div><span style="text-align:right"><span class="tag ${STAT[s][1]}">${STAT[s][0]}</span>${isAdmin()&&s!=='pendente'?`<br><button class="b sm s" data-reset="${inep}" style="margin-top:6px">Resetar</button>`:''}</span></div></div>
@@ -251,7 +267,7 @@ function itemRow(inep,it,i){
   <button class="b s sm" data-del="${i}">Excluir</button></div>`;
 }
 function tabAta(inep,e,v){
-  return `<div class="card"><h3>Itens verificados</h3>${CHECKS.map(c=>`<label class="chk"><input type="checkbox" data-chk="${c[0]}" ${v.checks[c[0]]?'checked':''}><span style="font-size:14px;color:var(--ink)">${esc(c[1])}</span></label>`).join('')}</div>
+  return `<div class="card"><h3>Itens verificados</h3>${CHECKS.map(c=>{const k=c[0],au=AUTO_CHK.includes(k);return `<label class="chk"><input type="checkbox" data-chk="${k}" ${v.checks[k]?'checked':''}><span style="font-size:14px;color:var(--ink);flex:1">${esc(c[1])}</span>${au&&v.auto&&v.auto[k]&&!(v.man&&v.man[k])?'<span class="tag t-ok" title="Marcado automaticamente pelos dados conferidos">auto</span>':''}${au&&v.man&&v.man[k]?`<button type="button" class="b sm s" data-autoreset="${k}">auto</button>`:''}</label>`}).join('')}<div class="mut" style="margin-top:4px">Itens com selo "auto" são marcados pelo app quando as quantidades, a amostra de séries e os estados registrados conferem. Os demais são marcados por você.</div></div>
   <div class="card"><label>Ocorrências</label><textarea rows="4" data-f="ocorr" placeholder="Quantidades, séries divergentes, avarias...">${esc(v.ocorr)}</textarea></div>
   <div class="card"><h3>Fotos (facultativo)</h3><div class="photos">${v.fotos.map((f,i)=>`<img src="${f}" data-ph="${i}">`).join('')}</div>
   <div class="row" style="margin-top:8px"><input type="file" id="ph" accept="image/*" capture="environment" multiple></div></div>
@@ -280,7 +296,8 @@ function bindEscola(inep){
       if(['almoxCB','almoxEst','contCB','contEst','pct'].includes(k))x=num(x);
       v[k]=x;touch(inep);if(['modo','almoxCB','almoxEst','contCB','contEst'].includes(k))render()};
   });
-  document.querySelectorAll('[data-chk]').forEach(el=>el.onchange=()=>{v.checks[el.dataset.chk]=el.checked;save()});
+  document.querySelectorAll('[data-chk]').forEach(el=>el.onchange=()=>{const k=el.dataset.chk;v.checks[k]=el.checked;if(AUTO_CHK.includes(k)){v.man=v.man||{};v.man[k]=true}touch(inep);render()});
+  document.querySelectorAll('[data-autoreset]').forEach(b=>b.onclick=e=>{e.preventDefault();const k=b.dataset.autoreset;delete v.man[k];v.auto=v.auto||{};v.auto[k]=true;touch(inep);render()});
   document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{if(confirm('Excluir este item?')){v.items.splice(+b.dataset.del,1);touch(inep);render()}});
   const c=document.querySelector('[data-act=concluir]');if(c)c.onclick=()=>{v.concluida=!v.concluida;if(v.concluida&&!v.data)v.data=nowLocal();touch(inep);render()};
   const add=$('#n-add');
@@ -409,7 +426,7 @@ function bindDados(){
 }
 
 /* ===== Ata para impressão ===== */
-function ata(inep){
+function ata(inep){if(autoChecks(inep))save();
   const e=byInep[inep],v=V(inep),a=almoxQ(inep);
   const bad=v.items.filter(it=>checkItem(inep,it).length);
   const dt=v.data?new Date(v.data).toLocaleString('pt-BR'):'____/____/2026';
@@ -484,7 +501,7 @@ $('#sync').onclick=()=>cfgOK()?sync(true):showLogin();
 function resetVisita(inep){if(!isAdmin())return;const e=byInep[inep];
   if(!confirm('Resetar a conferência de "'+(e?e[2]:inep)+'"? Apaga quantidades, equipamentos, ocorrências, fotos e assinatura, neste aparelho e no servidor. As fotos já enviadas permanecem no Drive.'))return;
   delete S.visits[inep];const v=V(inep);v.reset=true;touch(inep);toast('Conferência resetada');render()}
-function touch(inep){const v=V(inep);v.updated=Date.now();v.dirty=true;save();syncChip();clearTimeout(touch.t);touch.t=setTimeout(()=>sync(false),6000)}
+function touch(inep){autoChecks(inep);const v=V(inep);v.updated=Date.now();v.dirty=true;save();syncChip();clearTimeout(touch.t);touch.t=setTimeout(()=>sync(false),6000)}
 
 /* ===== Importação da planilha de saídas do Almoxarifado ===== */
 const XLSX_URL='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
