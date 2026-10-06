@@ -55,8 +55,8 @@ button:disabled{opacity:.6}
 .chk{display:flex;gap:10px;align-items:center;padding:7px 0}.chk input{width:22px;height:22px;flex:none}
 canvas.sig{width:100%;height:150px;border:1px dashed var(--mut);border-radius:8px;background:#fff;touch-action:none}
 .photos{display:flex;gap:6px;flex-wrap:wrap}.photos img{width:72px;height:72px;object-fit:cover;border-radius:8px}
-#scan{position:fixed;inset:0;background:#000;z-index:20;display:none;flex-direction:column}
-#scan video{flex:1;object-fit:cover;width:100%}#scan .bar{padding:12px;display:flex;gap:8px;background:#000}
+#scan{position:fixed;left:0;right:0;top:0;height:100vh;height:100dvh;background:#000;z-index:20;display:none;flex-direction:column}
+#scan video{flex:1;min-height:0;object-fit:cover;width:100%}#scan .bar{padding:12px 12px calc(16px + env(safe-area-inset-bottom));display:flex;gap:8px;background:#000;flex:none}#scan #scanmsg{flex:none}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:76px;background:#222;color:#fff;border-radius:10px;padding:9px 14px;z-index:30;display:none;max-width:90%}
 #printarea{display:none}
 #login{position:fixed;inset:0;z-index:50;background:var(--bg);display:none;align-items:center;justify-content:center;padding:16px}
@@ -345,7 +345,8 @@ function bindEscola(inep){
         if(campo==='serie'&&!it.tomb){const a=S.almoxItems[code];if(a&&a.tomb)it.tomb=a.tomb}
         touch(inep);n++;
         const f=checkItem(inep,it),par=it[outro]?' ↔ '+(campo==='serie'?'tomb. ':'série ')+it[outro]:'';
-        scanSay(n+' lido(s) · '+code+par+(f.length?' ⚠ '+f[0]:' ✓')+' — leia o próximo '+nome,f.length?'warn':'ok')
+        const sem=v.items.filter(x=>x.tipo===tipo&&(campo==='serie'?!x.tomb:!x.serie)).length;
+        scanSay(n+' lido(s) · '+code+par+(f.length?' ⚠ '+f[0]:' ✓')+(sem?' · aguardando '+(campo==='serie'?'tombamento':'série')+': '+sem:'')+' — leia o próximo '+nome,f.length?'warn':'ok')
       },{keep:true,msg:'Leia '+(campo==='serie'?'as SÉRIES':'os TOMBAMENTOS')+' em sequência',onClose:()=>{render();if(n)toast(n+' lido(s)')}})};
     $('#n-seq-s').onclick=()=>seq('serie');$('#n-seq-t').onclick=()=>seq('tomb');
     $('#n-scan2').onclick=()=>scan(code=>{$('#n-tomb').value=String(code).trim();prev()});
