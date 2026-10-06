@@ -34,7 +34,11 @@ button.sm{padding:6px 10px;font-size:13px}
 .pw{position:relative;display:block}.pw input{padding-right:46px}
 .eye{position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--mut);width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:8px;padding:0}
 .eye svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.b{transition:transform .08s,opacity .15s}.b:active:not(:disabled){transform:scale(.97)}
+button{position:relative;overflow:hidden;-webkit-tap-highlight-color:transparent;transition:transform .1s,filter .15s,opacity .15s,background-color .15s}
+button:active:not(:disabled){transform:scale(.95);filter:brightness(.88)}
+button:disabled{opacity:.6}
+.rp{position:absolute;border-radius:50%;background:currentColor;opacity:.28;transform:scale(0);animation:rp .5s ease-out forwards;pointer-events:none}
+@keyframes rp{to{transform:scale(1);opacity:0}}
 .b.load{position:relative;pointer-events:none;opacity:.85}
 .b.load::before{content:"";display:inline-block;width:14px;height:14px;margin-right:8px;vertical-align:-2px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -461,6 +465,7 @@ function bindDados(){
   $('#a-sair').onclick=logout;
   $('#a-troca').onclick=()=>{const f=$('#a-form');f.style.display=f.style.display==='none'?'block':'none'};
   $('#a-ok').onclick=async()=>{try{await api('changePassword',{atual:$('#a-at').value,nova:$('#a-nv').value});$('#a-at').value=$('#a-nv').value='';$('#a-form').style.display='none';toast('Senha alterada')}catch(e){toast(e.message)}};
+  wrapBusy(['s-test','Testando…'],['s-go','Sincronizando…'],['a-ok','Salvando…']);
   if(!isAdmin())return;
   if(isAdmin()){
     loadUsers();
@@ -636,6 +641,12 @@ function addEyes(){document.querySelectorAll('input[type=password]').forEach(i=>
   const b=document.createElement('button');b.type='button';b.className='eye';b.innerHTML=EYE;b.setAttribute('aria-label','Mostrar senha');
   b.onclick=()=>{const v=i.type==='password';i.type=v?'text':'password';b.innerHTML=v?EYEX:EYE;b.setAttribute('aria-label',v?'Ocultar senha':'Mostrar senha')};
   w.appendChild(b)})}
+document.addEventListener('pointerdown',e=>{const b=e.target.closest('button');if(!b||b.disabled)return;
+  const r=b.getBoundingClientRect(),d=Math.max(r.width,r.height)*2,sp=document.createElement('span');sp.className='rp';
+  sp.style.cssText='width:'+d+'px;height:'+d+'px;left:'+(e.clientX-r.left-d/2)+'px;top:'+(e.clientY-r.top-d/2)+'px';
+  b.appendChild(sp);setTimeout(()=>sp.remove(),520)},{passive:true});
+function wrapBusy(...l){for(const[id,txt]of l){const el=document.getElementById(id);if(!el||!el.onclick)continue;const f=el.onclick;
+  el.onclick=async ev=>{if(el.classList.contains('load'))return;busy(el,true,txt);try{await f.call(el,ev)}finally{busy(el,false)}}}}
 function busy(btn,on,txt){if(on){btn.dataset.t=btn.textContent;btn.textContent=txt;btn.classList.add('load');btn.disabled=true}else{btn.textContent=btn.dataset.t||btn.textContent;btn.classList.remove('load');btn.disabled=false}}
 addEyes();
 $('#l-go').onclick=async()=>{const m=$('#l-msg');m.textContent='';
