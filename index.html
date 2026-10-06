@@ -31,6 +31,13 @@ button.b.d{background:var(--bad);color:#fff}
 button.sm{padding:6px 10px;font-size:13px}
 .card[class*=st-]{border-left:6px solid var(--line)}.st-andamento{border-left-color:#d99a00!important}.st-confere{border-left-color:var(--ok)!important}.st-divergencia{border-left-color:var(--bad)!important}
 .pg{height:6px;border-radius:99px;background:var(--line);margin-top:8px;overflow:hidden}.pg i{display:block;height:100%;background:var(--ok);border-radius:99px}
+.pw{position:relative;display:block}.pw input{padding-right:46px}
+.eye{position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--mut);width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:8px;padding:0}
+.eye svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.b{transition:transform .08s,opacity .15s}.b:active:not(:disabled){transform:scale(.97)}
+.b.load{position:relative;pointer-events:none;opacity:.85}
+.b.load::before{content:"";display:inline-block;width:14px;height:14px;margin-right:8px;vertical-align:-2px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 .tag{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700}
 .t-ok{background:var(--okbg);color:var(--ok)}.t-bad{background:var(--badbg);color:var(--bad)}.t-warn{background:var(--warnbg);color:var(--warn)}.t-n{background:var(--line);color:var(--mut)}
 .mut{color:var(--mut);font-size:13px}
@@ -189,6 +196,7 @@ $('#back').onclick=()=>go('escolas');
 $('#menu').onclick=()=>go('dados');
 
 function render(){
+  setTimeout(addEyes,0);
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===(view.inep?'escolas':view.t)));
   $('#back').style.display=view.inep?'':'none';
   const m=$('#app');
@@ -622,18 +630,26 @@ function showLogin(msg,trocar){const lg=$('#login');lg.style.display='flex';$('#
   $('#l-srv').style.display=(DEFAULT_URL||(S.meta&&S.meta.url))?'none':'block';$('#l-form').style.display=trocar?'none':'block';$('#l-troca').style.display=trocar?'block':'none'}
 function enter(){$('#login').style.display='none';navLabel();$('#l-pw').value='';setFiscal();render();syncChip();if(navigator.onLine)setTimeout(()=>sync(false),500)}
 async function logout(){try{if(navigator.onLine&&S.meta.session)await api('logout',{})}catch(e){}S.meta.session='';S.meta.user=null;save();showLogin('')}
+const EYE='<svg viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>',EYEX='<svg viewBox="0 0 24 24"><path d="M17.9 17.9A10.8 10.8 0 0112 20C5 20 1 12 1 12a18.5 18.5 0 015.1-5.9M9.9 4.2A10 10 0 0112 4c7 0 11 8 11 8a18.6 18.6 0 01-2.2 3.2M14.1 14.1a3 3 0 11-4.2-4.2M1 1l22 22"/></svg>';
+function addEyes(){document.querySelectorAll('input[type=password]').forEach(i=>{if(i.parentNode.classList.contains('pw'))return;
+  const w=document.createElement('span');w.className='pw';i.parentNode.insertBefore(w,i);w.appendChild(i);
+  const b=document.createElement('button');b.type='button';b.className='eye';b.innerHTML=EYE;b.setAttribute('aria-label','Mostrar senha');
+  b.onclick=()=>{const v=i.type==='password';i.type=v?'text':'password';b.innerHTML=v?EYEX:EYE;b.setAttribute('aria-label',v?'Ocultar senha':'Mostrar senha')};
+  w.appendChild(b)})}
+function busy(btn,on,txt){if(on){btn.dataset.t=btn.textContent;btn.textContent=txt;btn.classList.add('load');btn.disabled=true}else{btn.textContent=btn.dataset.t||btn.textContent;btn.classList.remove('load');btn.disabled=false}}
+addEyes();
 $('#l-go').onclick=async()=>{const m=$('#l-msg');m.textContent='';
   const url=(DEFAULT_URL||$('#l-url').value||S.meta.url).trim();if(!url){m.textContent='Informe o endereço do servidor.';return}
   if(!navigator.onLine){m.textContent='O acesso exige internet. Depois de entrar, o app funciona sem conexão.';return}
   if(!$('#l-mat').value.trim()||!$('#l-pw').value){m.textContent='Informe matrícula e senha.';return}
-  S.meta.url=url;$('#l-go').disabled=true;
+  S.meta.url=url;busy($('#l-go'),true,'Entrando…');
   try{const pw=$('#l-pw').value,r=await api('login',{mat:$('#l-mat').value,senha:pw});
     const outro=S.meta.user&&S.meta.user.mat!==r.user.mat;S.meta.session=r.session;S.meta.user=r.user;S.meta.lastPull=outro?0:S.meta.lastPull;save();
     if(r.trocar){tmpPw=pw;showLogin('Defina uma nova senha para continuar.',true)}else enter()}
-  catch(e){m.textContent=e.message}finally{$('#l-go').disabled=false}};
+  catch(e){m.textContent=e.message}finally{busy($('#l-go'),false)}};
 $('#l-ok').onclick=async()=>{const m=$('#l-msg'),a=$('#l-n1').value,b=$('#l-n2').value;m.textContent='';
   if(a!==b){m.textContent='As senhas não coincidem.';return}
-  try{await api('changePassword',{atual:tmpPw,nova:a});tmpPw='';$('#l-n1').value=$('#l-n2').value='';enter()}catch(e){m.textContent=e.message}};
+  busy($('#l-ok'),true,'Salvando…');try{await api('changePassword',{atual:tmpPw,nova:a});tmpPw='';$('#l-n1').value=$('#l-n2').value='';enter()}catch(e){m.textContent=e.message}finally{busy($('#l-ok'),false)}};
 async function loadUsers(){const el=$('#u-list');if(!el)return;
   try{const r=await api('listUsers',{});el.innerHTML=r.users.map(u=>`<div class="item"><div style="flex:1"><b>${esc(u.nome)}</b> <span class="mut">${esc(u.mat)} · ${u.perfil==='admin'?'administrador':'técnico'}${u.ativo?'':' · INATIVO'}${u.trocar?' · senha temporária':''}<br>${esc(u.email||'')}</span></div>
     ${u.perfil==='admin'?'':`<div class="row" style="flex-wrap:wrap;justify-content:flex-end"><button class="b sm s" data-u="reset" data-m="${u.mat}">Redefinir senha</button><button class="b sm s" data-u="ativo" data-a="${u.ativo?0:1}" data-m="${u.mat}">${u.ativo?'Desativar':'Ativar'}</button><button class="b sm d" data-u="del" data-m="${u.mat}">Remover</button></div>`}</div>`).join('')+`<div class="mut" style="margin-top:6px">${r.users.length} de ${r.max} usuários.</div>`;
